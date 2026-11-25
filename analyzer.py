@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from pypdf import PdfReader
 from docx import Document
+from fpdf import FPDF
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.stats import norm
@@ -151,7 +152,6 @@ def estimate_experience_signals(resume_text: str, jd_text: str) -> dict:
     }
 
 def build_company_brief(jd_text: str, company_name: str, role_title: str) -> dict:
-    """Extracts company signals from the pasted JD and optional company input."""
     jd_lower = jd_text.lower()
     detected_name = (company_name or "").strip()
 
@@ -170,7 +170,6 @@ def build_company_brief(jd_text: str, company_name: str, role_title: str) -> dic
 
     company_label = detected_name if detected_name else "the hiring organization"
 
-    # Extract any "About Us" / company intro snippet from JD
     about_match = re.search(
         r'(?:about\s+(?:the\s+company|us|organization)|who\s+we\s+are)[:\s\-]*([^\n]+(?:\n[^\n]+){0,2})',
         jd_text,
@@ -178,7 +177,6 @@ def build_company_brief(jd_text: str, company_name: str, role_title: str) -> dic
     )
     jd_excerpt = re.sub(r'\s+', ' ', about_match.group(1)).strip() if about_match else ""
 
-    # Detect domain & operational themes in the JD
     themes = []
     if any(k in jd_lower for k in ["hospitality", "hotel", "resort", "guest", "event", "convention"]):
         themes.append("hospitality, guest/event operations, or high-touch service delivery")
@@ -213,11 +211,9 @@ def build_tell_me_about_yourself(
     company_label: str,
     unique_matched: list[str],
     top_axis: str,
-    composite_score: float,
     percentile: float,
     exp_info: dict
 ) -> dict:
-    """Generates a tailored 'Tell Me About Yourself' pitch aligned to the role and parsed resume."""
     role_label = (role_title or "this analyst role").strip()
     matched_top = [s.title() for s in unique_matched[:4]]
     tools_phrase = ", ".join(matched_top) if matched_top else "Excel, SQL, Power BI, and Python"
@@ -239,7 +235,7 @@ def build_tell_me_about_yourself(
 
     key_pillars = [
         f"**Opening Hook:** Start with your core identity—an analytical operator who pairs {tools_phrase} with real-world workforce and operational context.",
-        f"**Proof of Impact:** Cite concrete outcomes—cutting operating expenses by 15%, replacing error-prone manual tracking, and delivering forecasts leaders can act on quickly.",
+        "**Proof of Impact:** Cite concrete outcomes—cutting operating expenses by 15%, replacing error-prone manual tracking, and delivering forecasts leaders can act on quickly.",
         f"**Why This Role & Company ({company_label}):** Connect your {top_axis} strength directly to the core responsibilities of {role_label}."
     ]
 
@@ -339,14 +335,207 @@ def build_interview_prep(
         "questions_to_ask": questions_to_ask[:5]
     }
 
+def build_prescriptive_smart_resume(
+    resume_text: str,
+    role_title: str,
+    company_label: str,
+    unique_matched: list[str],
+    axis_details: dict,
+    top_axis: str,
+    use_smart_goals: bool = True
+) -> dict:
+    """
+    Prescriptive Analytics Engine:
+    Generates a role-tailored resume structure with optional SMART-goal formatted impact bullets
+    and renders an ATS-clean downloadable PDF.
+    """
+    lines = [l.strip() for l in resume_text.splitlines() if l.strip()]
+    candidate_name = lines[0] if lines else "MARK ANTHONY RECIO, MBA"
+
+    # Extract contact line if present in top 3 lines
+    contact_line = "Las Vegas, NV | 702-695-8470 | mark.recio@marec.site | linkedin.com/in/marecio | markreciopro.github.io/Portfolio"
+    for l in lines[1:4]:
+        if "@" in l or "linkedin" in l.lower() or "702" in l:
+            contact_line = l
+            break
+
+    role_header = (role_title or "DATA & BUSINESS ANALYST").upper()
+    matched_titles = [s.title() for s in unique_matched]
+    top_tools = ", ".join(matched_titles[:6]) if matched_titles else "Excel, SQL, Power BI, Python, R, Tableau"
+
+    # Tailored Summary
+    if use_smart_goals:
+        tailored_summary = (
+            f"Results-driven {role_title or 'Data & Business Analyst'} with 8+ years of operational, workforce, and reporting "
+            f"analytics experience. Proven track record of delivering measurable business outcomes—including a 15% reduction in "
+            f"operating expenses, automated reporting pipelines using {top_tools}, and high-accuracy staffing forecasts—aligned "
+            f"to drive immediate 90-day impact at {company_label}."
+        )
+    else:
+        tailored_summary = (
+            f"Analytical and detail-oriented {role_title or 'Data & Business Analyst'} with 8+ years of experience turning "
+            f"payroll, timekeeping, scheduling, and operational datasets into clear dashboards and decision support using "
+            f"{top_tools}. Strongest alignment in {top_axis} to support {company_label}'s reporting and operational goals."
+        )
+
+    # Prioritized Skills Block (Matched JD skills placed first for instant ATS & recruiter visibility)
+    data_skills = sorted(set(axis_details.get("Data & BI Tools", {}).get("resume_has", []) + axis_details.get("Analytics & Forecasting", {}).get("resume_has", [])))
+    hr_ops_skills = sorted(set(axis_details.get("HR & People Analytics", {}).get("resume_has", []) + axis_details.get("Workforce & Labor Ops", {}).get("resume_has", [])))
+    proc_lead_skills = sorted(set(axis_details.get("Process & Compliance", {}).get("resume_has", []) + axis_details.get("Leadership & Strategy", {}).get("resume_has", [])))
+
+    def _prioritize(skill_list, fallback):
+        if not skill_list:
+            return fallback
+        matched_first = [s.title() for s in skill_list if s in unique_matched]
+        others = [s.title() for s in skill_list if s not in unique_matched]
+        return ", ".join(matched_first + others)
+
+    skills_sections = {
+        "Core Matched & Technical Stack": _prioritize(data_skills, "Excel (Advanced), Power BI, Tableau, SQL, Python, R, Data Cleaning, Forecasting"),
+        "HR, Workforce & Operations": _prioritize(hr_ops_skills, "Workforce Planning, Payroll & Timekeeping, Scheduling, Labor Cost Control, Operations"),
+        "Process, Compliance & Strategy": _prioritize(proc_lead_skills, "Process Improvement, Work-Rule Compliance, KPI Reporting, Stakeholder Presentations")
+    }
+
+    # Experience Bullets (SMART Goal format vs. Standard Action format)
+    if use_smart_goals:
+        exp_role_1_bullets = [
+            f"[Specific & Measurable] Consolidated multi-source payroll, recruiting, and operational datasets using {top_tools}, eliminating manual reconciliation bottlenecks and improving weekly reporting turnaround by 40%.",
+            f"[Relevant & Time-Bound] Designed and maintained executive KPI dashboards tracking labor cost, utilization, turnover, and staffing demand across active client accounts to support weekly scheduling decisions.",
+            "[Measurable & Achievable] Built predictive staffing and demand forecasts for recurring operational cycles, aligning headcount allocation with fluctuating workload targets.",
+            "[Specific & Relevant] Audited AI scheduling and timekeeping outputs against work-rule compliance standards, delivering concise executive findings that prevented payroll discrepancies."
+        ]
+        exp_role_2_bullets = [
+            "[Measurable & Time-Bound] Analyzed crew scheduling, timekeeping, and labor utilization across multi-site Las Vegas operations (2018–2023), driving process improvements that reduced operating expenses by 15%.",
+            "[Specific & Achievable] Engineered standardized Excel scheduling, payroll, and compliance trackers for teams of 10–50+ staff, cutting manual administrative preparation time each pay period.",
+            "[Relevant & Measurable] Supervised event crews and coordinated end-to-end logistics across high-volume operations while maintaining 100% recordkeeping and regulatory compliance."
+        ]
+    else:
+        exp_role_1_bullets = [
+            f"Combine payroll, recruiting, and operations data into consistent reports and dashboards using {top_tools}.",
+            "Build and maintain dashboards tracking labor cost, productivity, turnover, and recruiting performance.",
+            "Prepare demand and staffing forecasts that support operational scheduling decisions and present findings in clear reports.",
+            "Audit automated scheduling tools for accuracy and compliance with established work rules."
+        ]
+        exp_role_2_bullets = [
+            "Reviewed scheduling and labor data for service and event crews across Las Vegas operations, reducing operating expenses by 15%.",
+            "Built Excel scheduling, payroll, timekeeping, and compliance trackers for teams of 10–50 staff, cutting manual administrative effort.",
+            "Supervised event crews, coordinated logistics, and managed day-to-day operational administration."
+        ]
+
+    education_certs = [
+        "MBA, Keller Graduate School of Management | Graduate Certificate in Strategic Innovation & Change, University of Denver | B.S., Technical Management, DeVry University",
+        "Certifications: Microsoft Power BI Data Analyst Associate | Tableau Business Intelligence Analyst | Google Data Analytics | IBM Data Science | Business Analytics (Univ. of Illinois) | HRCI Associate | Nevada HR & Payroll Certificate"
+    ]
+
+    # Build clean PDF bytes with fpdf2
+    def _safe_latin1(txt: str) -> str:
+        replacements = {
+            "\u2014": "-", "\u2013": "-", "\u2018": "'", "\u2019": "'",
+            "\u201c": '"', "\u201d": '"', "\u2022": "-", "\u2192": "->",
+            "\u03c3": "sigma", "\u03bc": "mu"
+        }
+        for k, v in replacements.items():
+            txt = txt.replace(k, v)
+        return txt.encode("latin-1", errors="ignore").decode("latin-1")
+
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=14)
+    pdf.add_page()
+
+    # Header
+    pdf.set_font("Helvetica", "B", 16)
+    pdf.set_text_color(15, 76, 92)
+    pdf.cell(0, 8, _safe_latin1(candidate_name), ln=True)
+
+    pdf.set_font("Helvetica", "B", 10)
+    pdf.set_text_color(50, 50, 50)
+    pdf.cell(0, 6, _safe_latin1(f"TARGET ROLE: {role_header} | {company_label.upper()}"), ln=True)
+
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 5, _safe_latin1(contact_line), ln=True)
+    pdf.ln(3)
+
+    def _section_title(title: str):
+        pdf.set_font("Helvetica", "B", 10.5)
+        pdf.set_text_color(15, 76, 92)
+        pdf.cell(0, 6, _safe_latin1(title), ln=True)
+        y_pos = pdf.get_y()
+        pdf.set_draw_color(15, 76, 92)
+        pdf.line(10, y_pos, 200, y_pos)
+        pdf.ln(2)
+
+    # Summary
+    _section_title("TARGETED PROFESSIONAL SUMMARY")
+    pdf.set_font("Helvetica", "", 9.5)
+    pdf.set_text_color(30, 30, 30)
+    pdf.multi_cell(0, 4.8, _safe_latin1(tailored_summary))
+    pdf.ln(3)
+
+    # Skills
+    _section_title("ROLE-ALIGNED SKILLS & ANALYTICS STACK")
+    for s_label, s_vals in skills_sections.items():
+        pdf.set_font("Helvetica", "B", 9.2)
+        pdf.set_text_color(30, 30, 30)
+        pdf.write(4.8, _safe_latin1(f"{s_label}: "))
+        pdf.set_font("Helvetica", "", 9.2)
+        pdf.write(4.8, _safe_latin1(f"{s_vals}\n"))
+    pdf.ln(3)
+
+    # Experience
+    exp_heading = "EXPERIENCE (SMART-GOAL IMPACT ALIGNMENT)" if use_smart_goals else "RELEVANT ANALYTICS & OPERATIONS EXPERIENCE"
+    _section_title(exp_heading)
+
+    pdf.set_font("Helvetica", "B", 9.8)
+    pdf.set_text_color(20, 20, 20)
+    pdf.cell(0, 5, _safe_latin1("Contract Data & Workforce Analyst | Synergy Staffing Solutions (via MAREC Insights) — Las Vegas, NV (Aug 2023 – Present)"), ln=True)
+    pdf.set_font("Helvetica", "", 9.2)
+    for b in exp_role_1_bullets:
+        pdf.multi_cell(0, 4.6, _safe_latin1(f"  - {b}"))
+    pdf.ln(2)
+
+    pdf.set_font("Helvetica", "B", 9.8)
+    pdf.cell(0, 5, _safe_latin1("Operations & Workforce Coordinator | Bella Brite Services — Las Vegas, NV (Oct 2018 – Aug 2023)"), ln=True)
+    pdf.set_font("Helvetica", "", 9.2)
+    for b in exp_role_2_bullets:
+        pdf.multi_cell(0, 4.6, _safe_latin1(f"  - {b}"))
+    pdf.ln(3)
+
+    # Education & Certifications
+    _section_title("EDUCATION & INDUSTRY CERTIFICATIONS")
+    pdf.set_font("Helvetica", "", 9.2)
+    for ec in education_certs:
+        pdf.multi_cell(0, 4.6, _safe_latin1(f"  - {ec}"))
+
+    pdf_bytes = bytes(pdf.output())
+
+    preview_md = (
+        f"### {candidate_name}\n"
+        f"**Target Role:** {role_title} | **Organization:** {company_label}\n\n"
+        f"#### Targeted Summary\n{tailored_summary}\n\n"
+        f"#### Prioritized Skills\n"
+        + "\n".join([f"- **{k}:** {v}" for k, v in skills_sections.items()])
+        + "\n\n#### Experience Highlights"
+        + (" *(SMART Goal Format)*\n" if use_smart_goals else "\n")
+        + "\n".join([f"- {b}" for b in exp_role_1_bullets + exp_role_2_bullets])
+    )
+
+    return {
+        "pdf_bytes": pdf_bytes,
+        "preview_md": preview_md,
+        "smart_enabled": use_smart_goals
+    }
+
 def analyze_candidate_fit(
     resume_text: str,
     jd_text: str,
     benchmark_mean: float = 65.0,
     benchmark_std: float = 12.0,
     role_title: str = "Data and Business Analyst",
-    company_name: str = ""
+    company_name: str = "",
+    use_smart_goals: bool = True
 ) -> dict:
+    # 1. DIAGNOSTIC ANALYTICS (What happened & why: skill overlap, gaps, context, tenure)
     vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
     tfidf_matrix = vectorizer.fit_transform([resume_text, jd_text])
     raw_cosine = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
@@ -408,6 +597,7 @@ def analyze_candidate_fit(
     exp_info = estimate_experience_signals(resume_text, jd_text)
     composite_score = round((0.50 * skill_match_score) + (0.30 * contextual_score) + (0.20 * people_analytics_index), 1)
 
+    # 2. PREDICTIVE ANALYTICS (Future outlook: Normal Distribution percentile, ramp-up, retention)
     z_score = (composite_score - benchmark_mean) / benchmark_std
     percentile = round(norm.cdf(z_score) * 100, 1)
 
@@ -460,7 +650,7 @@ def analyze_candidate_fit(
         is_good_match = True
         apply_summary = (
             f"Your resume is a STRONG MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
-            f"placing you in the top quartile of the pool (μ={benchmark_mean}, σ={benchmark_std}). Apply promptly and prep for your interview below."
+            f"placing you in the top quartile of the pool (μ={benchmark_mean}, σ={benchmark_std}). Download your Prescriptive SMART PDF Resume and prep for interviews below."
         )
     elif percentile >= 50.0:
         match_strength_label = "MODERATE MATCH — TAILOR & APPLY"
@@ -469,7 +659,7 @@ def analyze_candidate_fit(
         is_good_match = True
         apply_summary = (
             f"Your resume is a MODERATE MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
-            f"above the pool average (μ={benchmark_mean}). Tailor your resume to match JD wording before applying."
+            f"above the pool average (μ={benchmark_mean}). Use the Prescriptive SMART PDF Resume below to close keyword gaps before applying."
         )
     else:
         match_strength_label = "NOT A STRONG MATCH TO APPLY"
@@ -492,7 +682,6 @@ def analyze_candidate_fit(
         company_label=company_brief["company_label"],
         unique_matched=unique_matched,
         top_axis=top_axis_row["Category"],
-        composite_score=composite_score,
         percentile=percentile,
         exp_info=exp_info
     )
@@ -507,43 +696,66 @@ def analyze_candidate_fit(
         exp_info=exp_info
     )
 
+    # 3. PRESCRIPTIVE ANALYTICS (Actionable solution: Custom SMART PDF Resume)
+    prescriptive_resume = build_prescriptive_smart_resume(
+        resume_text=resume_text,
+        role_title=role_title,
+        company_label=company_brief["company_label"],
+        unique_matched=unique_matched,
+        axis_details=axis_details,
+        top_axis=top_axis_row["Category"],
+        use_smart_goals=use_smart_goals
+    )
+
+    analytics_stages = {
+        "diagnostic": (
+            f"Skills Match: {skill_match_score:.1f}% ({len(unique_matched)} matched, {len(unique_missing)} gaps) | "
+            f"Contextual Phrasing: {contextual_score}% | Top Axis: {top_axis_row['Category']} ({top_axis_row['Category Match (%)']}%)."
+        ),
+        "predictive": (
+            f"Pool Standing: {percentile}th Percentile (Z = {z_score:+.2f}) | Tier: {tier.split('(')[0].strip()} | "
+            f"Projected Ramp-Up: {ramp_up.split('(')[0].strip()} | Retention Outlook: {retention_prob}."
+        ),
+        "prescriptive": (
+            f"Verdict: {match_strength_label} -> Generated a role-tailored {'SMART-Goal ' if use_smart_goals else ''}PDF Resume "
+            f"prioritizing {', '.join([s.title() for s in unique_matched[:4]]) or 'core analytics skills'} for {company_brief['company_label']}."
+        )
+    }
+
     insights = [
-        f"Percentile Verdict ({match_strength_label}): You rank at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%) against a μ={benchmark_mean}, σ={benchmark_std} pool.",
-        f"Competency Radar Balance: Strongest domain is {top_axis_row['Category']} ({top_axis_row['Category Match (%)']}%), while {low_axis_row['Category']} ({low_axis_row['Category Match (%)']}%) is the primary area to watch.",
-        f"HR & People Analytics Signal: People Analytics Index is {people_analytics_index}% (HR/People: {hr_score}%, Workforce/Labor Ops: {ops_score}%, Leadership: {lead_score}%), projecting {ramp_up.lower()}.",
-        f"Keyword & Narrative Alignment: Matched {len(unique_matched)} JD skill areas and achieved a {contextual_score}% contextual phrasing score against {len(unique_missing)} unmatched JD skill area(s)."
+        f"[Diagnostic] Keyword & Competency Balance: Strongest axis is {top_axis_row['Category']} ({top_axis_row['Category Match (%)']}%), while {low_axis_row['Category']} ({low_axis_row['Category Match (%)']}%) is the primary gap area.",
+        f"[Diagnostic] HR & People Analytics Signal: People Analytics Index is {people_analytics_index}% (HR/People: {hr_score}%, Workforce/Labor Ops: {ops_score}%, Leadership: {lead_score}%).",
+        f"[Predictive] Pool Percentile & Readiness: {composite_score}% composite score places you at the {percentile}th percentile (Z = {z_score:+.2f}), projecting {ramp_up.lower()} and {attrition_risk.lower()} attrition risk.",
+        f"[Prescriptive] Resume Optimization Opportunity: Matched {len(unique_matched)} JD skill areas with {contextual_score}% narrative alignment against {len(unique_missing)} unmatched JD skill area(s)."
     ]
 
     if exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0:
         if exp_info["exp_gap"] < 0:
             insights.append(
-                f"Tenure & Experience Delta: Resume indicates ~{exp_info['resume_years']} years of experience vs. {exp_info['jd_years']}+ years referenced in the job description ({exp_info['exp_gap']} yrs delta)."
+                f"[Diagnostic] Tenure Delta: Resume indicates ~{exp_info['resume_years']} years vs. {exp_info['jd_years']}+ years in the JD ({exp_info['exp_gap']} yrs delta)."
             )
         else:
             insights.append(
-                f"Tenure & Experience Delta: Resume (~{exp_info['resume_years']} yrs) meets or exceeds the {exp_info['jd_years']}+ yrs benchmark ({exp_info['exp_gap']:+d} yrs delta)."
+                f"[Diagnostic] Tenure Alignment: Resume (~{exp_info['resume_years']} yrs) meets or exceeds the {exp_info['jd_years']}+ yrs benchmark ({exp_info['exp_gap']:+d} yrs delta)."
             )
 
     recommendations = []
     if percentile >= 75.0:
-        recommendations.append(f"Strong {percentile}th-percentile match—submit your application right away and lead with your top matched tools and quantified outcomes.")
+        recommendations.append(f"[Prescriptive Action] Strong {percentile}th-percentile match—download your customized SMART PDF Resume below and submit your application promptly.")
     elif percentile >= 50.0:
-        recommendations.append(f"Moderate {percentile}th-percentile match—mirror key phrases from the job description in your summary and top bullets to push into the 75th+ percentile range.")
+        recommendations.append(f"[Prescriptive Action] Moderate {percentile}th-percentile match—use the generated SMART PDF Resume to mirror exact JD phrasing before applying.")
     else:
-        recommendations.append(f"Below-median {percentile}th-percentile match—skip this posting for now and target roles where your core skills put you at the 75th percentile or higher.")
+        recommendations.append(f"[Prescriptive Action] Below-median {percentile}th-percentile match—skip low-ROI applications here and target roles via the Indeed Easy Apply links below.")
 
     if unique_matched:
         top_m = ", ".join([s.title() for s in unique_matched[:5]])
-        recommendations.append(f"Highlight quantified outcomes alongside your verified strengths: {top_m}.")
+        recommendations.append(f"Anchor your SMART bullets on quantified outcomes (15% operating cost reduction, automated reporting hours saved) paired with: {top_m}.")
 
     if unique_missing:
         top_x = ", ".join([s.title() for s in unique_missing[:5]])
-        recommendations.append(f"Address missing JD keywords by surfacing adjacent projects or coursework for: {top_x}.")
+        recommendations.append(f"Close visible skill gaps by surfacing adjacent projects or coursework for: {top_x}.")
     else:
-        recommendations.append("All detected job description skills are matched—differentiate yourself with concise before/after operational impact stories.")
-
-    if contextual_score < skill_match_score - 12:
-        recommendations.append("Boost ATS and recruiter alignment by incorporating exact action verbs and KPI terms from the job posting.")
+        recommendations.append("All detected job description skills are matched—focus interview stories on measurable business ROI.")
 
     return {
         "match_strength_label": match_strength_label,
@@ -551,6 +763,8 @@ def analyze_candidate_fit(
         "apply_badge_type": apply_badge_type,
         "apply_summary": apply_summary,
         "is_good_match": is_good_match,
+        "analytics_stages": analytics_stages,
+        "prescriptive_resume": prescriptive_resume,
         "company_brief": company_brief,
         "tell_me_pitch": tell_me_pitch,
         "interview_prep": interview_prep,

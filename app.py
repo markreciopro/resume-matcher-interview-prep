@@ -1,4 +1,5 @@
-﻿import streamlit as st
+﻿import re
+import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
@@ -16,17 +17,20 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🎯 Personal Job Match & Interview Prep Studio")
+st.title("🎯 Personal Job Match & Prescriptive Resume Studio")
 st.markdown(
-    "Evaluate **percentile-based match strength**, **About the Company signals**, **role-matched 'Tell Me About Yourself' pitch**, **side-by-side Resume & JD highlights**, **Interview Focus Points**, **Recommendations**, and **Indeed Easily Apply** links."
+    "Powered by **Diagnostic**, **Predictive**, and **Prescriptive Analytics** — evaluate percentile match strength, inspect company and role alignment, and download a customized **SMART-Goal PDF Resume**."
 )
 
 with st.sidebar:
-    st.header("⚙️ Benchmark & Distribution Settings")
-    st.caption("Configure the Normal Distribution bell curve for your target applicant pool.")
+    st.header("⚙️ Analytics & Resume Settings")
+    st.caption("Configure the Normal Distribution benchmark and Prescriptive PDF Resume options.")
     pool_mean = st.slider("Pool Mean Score (μ)", 40.0, 80.0, 65.0, 1.0)
     pool_std = st.slider("Standard Deviation (σ)", 5.0, 20.0, 12.0, 0.5)
     target_bar = st.slider("Radar Target Threshold (%)", 40.0, 100.0, 75.0, 5.0)
+    st.divider()
+    use_smart_goals = st.checkbox("Format Tailored Resume with SMART Goals", value=True)
+    st.caption("Specific, Measurable, Achievable, Relevant, and Time-Bound bullets.")
     st.divider()
     st.markdown("**Percentile & Match Guide**")
     st.caption("• ≥ 75th pct: Strong Match to Apply\n• 50th–74th pct: Moderate Match (Tailor First)\n• < 50th pct: Not a Strong Match Yet")
@@ -55,7 +59,7 @@ with col2:
     st.subheader("2. Target Job Description")
     jd_text_input = st.text_area("Paste Job Description:", height=255, placeholder="Paste job description, requirements, and skills...")
 
-analyze_btn = st.button("🚀 Analyze Job Match & Prepare Interview Strategy", type="primary", use_container_width=True)
+analyze_btn = st.button("🚀 Run Diagnostic, Predictive & Prescriptive Analysis", type="primary", use_container_width=True)
 
 if analyze_btn:
     resume_text = extract_text_from_file(uploaded_resume) if uploaded_resume else resume_text_input.strip()
@@ -70,7 +74,8 @@ if analyze_btn:
             benchmark_mean=pool_mean,
             benchmark_std=pool_std,
             role_title=target_role,
-            company_name=target_company
+            company_name=target_company,
+            use_smart_goals=use_smart_goals
         )
         indeed_links = build_indeed_easy_apply_links(
             role_query=target_role,
@@ -89,6 +94,46 @@ if analyze_btn:
             st.warning(verdict_msg)
         else:
             st.error(verdict_msg)
+
+        # 3-Stage Data Analytics Framework Banner
+        st.subheader("🧭 Data Analytics Pipeline: Diagnostic → Predictive → Prescriptive")
+        da1, da2, da3 = st.columns(3)
+        with da1:
+            st.info(f"**1. Diagnostic Analytics (What & Why)**\n\n{res['analytics_stages']['diagnostic']}")
+        with da2:
+            st.warning(f"**2. Predictive Analytics (Pool Outlook)**\n\n{res['analytics_stages']['predictive']}")
+        with da3:
+            st.success(f"**3. Prescriptive Analytics (Action Plan)**\n\n{res['analytics_stages']['prescriptive']}")
+
+        st.divider()
+
+        # Prescriptive Analytics Deliverable: Tailored SMART-Goal PDF Resume Download
+        st.subheader("📝 Prescriptive Analytics: Tailored PDF Resume Generator")
+        if res["is_good_match"]:
+            st.caption(
+                f"Because this role is a {res['match_strength_label']} ({res['percentile']}th percentile), "
+                f"your resume has been customized for **{target_role}** at **{res['company_brief']['company_label']}** "
+                + ("using **SMART Goal** impact bullets." if use_smart_goals else "with role-prioritized skills.")
+            )
+        else:
+            st.caption(
+                "This posting is currently below the 50th percentile, but you can still preview or download a tailored draft below."
+            )
+
+        safe_role_slug = re.sub(r'[^A-Za-z0-9]+', '_', target_role).strip('_') or "Target_Role"
+        pdf_filename = f"Mark_Recio_Resume_{safe_role_slug}.pdf"
+
+        st.download_button(
+            label=f"⬇️ Download Customized {'SMART-Goal ' if use_smart_goals else ''}PDF Resume ({pdf_filename})",
+            data=res["prescriptive_resume"]["pdf_bytes"],
+            file_name=pdf_filename,
+            mime="application/pdf",
+            type="primary",
+            use_container_width=True
+        )
+
+        with st.expander("👀 Preview Customized Resume Content Before Downloading", expanded=False):
+            st.markdown(res["prescriptive_resume"]["preview_md"])
 
         st.divider()
 
@@ -115,7 +160,7 @@ if analyze_btn:
         st.divider()
 
         # Side-by-Side Highlighted Resume vs. Pasted Job Description
-        st.subheader("📄 Side-by-Side Resume & Job Description Match Viewer")
+        st.subheader("📄 Diagnostic View: Side-by-Side Resume & Job Description Match")
         st.markdown(
             "Highlight Legend: "
             "<mark style='background-color: rgba(0, 204, 150, 0.28); border-bottom: 2px solid #00CC96; padding: 1px 6px; border-radius: 4px; color: inherit;'><b>Green = Matched in Both</b></mark> &nbsp;|&nbsp; "
@@ -128,7 +173,7 @@ if analyze_btn:
         with doc_col1:
             st.markdown("#### 👤 Your Parsed Resume (Highlighted)")
             st.markdown(
-                f"<div style='height: 400px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
+                f"<div style='height: 380px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
                 f"{res['resume_highlighted_html']}"
                 f"</div>",
                 unsafe_allow_html=True
@@ -136,7 +181,7 @@ if analyze_btn:
         with doc_col2:
             st.markdown("#### 📋 Pasted Job Description (Highlighted)")
             st.markdown(
-                f"<div style='height: 400px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
+                f"<div style='height: 380px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
                 f"{res['jd_highlighted_html']}"
                 f"</div>",
                 unsafe_allow_html=True
@@ -144,11 +189,11 @@ if analyze_btn:
 
         st.divider()
 
-        # Row 1: Bell Curve + Detailed 6-Axis Radar
+        # Row 1: Predictive Bell Curve + Diagnostic 6-Axis Radar
         c_bell, c_radar = st.columns([3, 2])
 
         with c_bell:
-            st.subheader("🔔 Normal Distribution Bell Curve: Percentile Positioning")
+            st.subheader("🔔 Predictive Analytics: Normal Distribution Bell Curve")
             x = np.linspace(max(0, pool_mean - 4 * pool_std), min(100, pool_mean + 4 * pool_std), 600)
             y = norm.pdf(x, pool_mean, pool_std)
 
@@ -197,7 +242,7 @@ if analyze_btn:
             st.plotly_chart(fig_bell, use_container_width=True)
 
         with c_radar:
-            st.subheader("🕸️ 6-Axis Competency Radar")
+            st.subheader("🕸️ Diagnostic 6-Axis Competency Radar")
             cat_df = res["category_df"]
             vals = cat_df["Category Match (%)"].tolist()
             cats = cat_df["Category"].tolist()
@@ -246,7 +291,7 @@ if analyze_btn:
         c_heat, c_donut = st.columns([3, 2])
 
         with c_heat:
-            st.subheader("🔥 Competency & Skill Coverage Heatmap")
+            st.subheader("🔥 Diagnostic Competency & Skill Coverage Heatmap")
             short_cats = [
                 "Data & BI",
                 "Analytics & Forecast",
@@ -401,7 +446,7 @@ if analyze_btn:
         st.divider()
         ins_col, rec_col = st.columns(2)
         with ins_col:
-            st.subheader("🔍 Detailed Match Insights")
+            st.subheader("🔍 Diagnostic, Predictive & Prescriptive Insights")
             for item in res["insights"]:
                 st.info(item)
 
@@ -446,7 +491,7 @@ if analyze_btn:
 
         # Export Summary Report
         st.divider()
-        st.subheader("📥 Export Job Match & Interview Prep Report")
+        st.subheader("📥 Export Full Analytics & Interview Prep Guide")
         prep_md = ""
         if res["is_good_match"]:
             prep_md = (
@@ -458,7 +503,7 @@ if analyze_btn:
             )
 
         report_md = (
-            f"# Personal Job Match & Interview Prep Report\n\n"
+            f"# Personal Job Match & Prescriptive Resume Report\n\n"
             f"- **Percentile Match Verdict:** {res['apply_decision']} ({res['percentile']}th Percentile)\n"
             f"- **Verdict Rationale:** {res['apply_summary']}\n"
             f"- **Company:** {res['company_brief']['company_label']}\n"
@@ -467,6 +512,10 @@ if analyze_btn:
             f"- **Skills Match:** {res['skill_match_score']}% | **Context Match:** {res['contextual_score']}%\n"
             f"- **HR & People Index:** {res['people_analytics_index']}%\n"
             f"- **Projected Tier:** {res['tier']}\n\n"
+            f"## 3-Stage Data Analytics Summary\n"
+            f"- **Diagnostic:** {res['analytics_stages']['diagnostic']}\n"
+            f"- **Predictive:** {res['analytics_stages']['predictive']}\n"
+            f"- **Prescriptive:** {res['analytics_stages']['prescriptive']}\n\n"
             f"## About the Company\n{res['company_brief']['theme_summary']}\n\n"
             f"## Tell Me About Yourself (Matched to Role)\n{res['tell_me_pitch']['pitch_script']}\n\n"
             f"## Matched Skills\n{', '.join(res['matched_skills']) or 'None'}\n\n"
@@ -477,7 +526,7 @@ if analyze_btn:
         )
         ex1, ex2 = st.columns(2)
         ex1.download_button(
-            "📄 Download Interview & Match Guide (.md)",
+            "📄 Download Interview & Analytics Guide (.md)",
             data=report_md,
             file_name="job_match_interview_prep.md",
             mime="text/markdown",
