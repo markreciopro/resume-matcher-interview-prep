@@ -18,7 +18,7 @@ st.set_page_config(
 
 st.title("🎯 Personal Job Match & Interview Prep Studio")
 st.markdown(
-    "Evaluate **percentile-based match strength**, **Apply / Do Not Apply verdict**, **side-by-side Resume & JD match highlights**, **Normal Distribution performance positioning**, **6-Axis Competency Radar**, **Interview Focus Points**, and **Indeed Easily Apply** links."
+    "Evaluate **percentile-based match strength**, **About the Company signals**, **role-matched 'Tell Me About Yourself' pitch**, **side-by-side Resume & JD highlights**, **Interview Focus Points**, **Recommendations**, and **Indeed Easily Apply** links."
 )
 
 with st.sidebar:
@@ -31,13 +31,15 @@ with st.sidebar:
     st.markdown("**Percentile & Match Guide**")
     st.caption("• ≥ 75th pct: Strong Match to Apply\n• 50th–74th pct: Moderate Match (Tailor First)\n• < 50th pct: Not a Strong Match Yet")
 
-st.subheader("🔍 Target Role & Indeed Search Filters")
-r_col1, r_col2, r_col3 = st.columns([2, 2, 1])
+st.subheader("🔍 Target Role, Company & Indeed Search Filters")
+r_col1, r_col2, r_col3, r_col4 = st.columns([2, 2, 2, 1])
 with r_col1:
     target_role = st.text_input("Target Job Title / Role", value="Data and Business Analyst")
 with r_col2:
-    target_location = st.text_input("City, State or Zip (Optional)", value="Las Vegas, NV")
+    target_company = st.text_input("Company Name (Optional)", value="", placeholder="Auto-detected from JD if blank")
 with r_col3:
+    target_location = st.text_input("City, State or Zip (Optional)", value="Las Vegas, NV")
+with r_col4:
     st.write("")
     st.write("")
     remote_filter = st.checkbox("Remote / Hybrid", value=False)
@@ -67,7 +69,8 @@ if analyze_btn:
             jd_text=jd_text,
             benchmark_mean=pool_mean,
             benchmark_std=pool_std,
-            role_title=target_role
+            role_title=target_role,
+            company_name=target_company
         )
         indeed_links = build_indeed_easy_apply_links(
             role_query=target_role,
@@ -86,6 +89,28 @@ if analyze_btn:
             st.warning(verdict_msg)
         else:
             st.error(verdict_msg)
+
+        st.divider()
+
+        # About the Company + Tell Me About Yourself (Matched to Role)
+        comp_col, pitch_col = st.columns(2)
+
+        with comp_col:
+            st.subheader(f"🏢 About the Company: {res['company_brief']['company_label']}")
+            st.info(res["company_brief"]["theme_summary"])
+            if res["company_brief"]["jd_excerpt"]:
+                st.caption("Excerpt detected from posting:")
+                st.write(f"> *{res['company_brief']['jd_excerpt']}*")
+            st.markdown("**Pre-Interview Company Research Checklist:**")
+            for chk in res["company_brief"]["research_checks"]:
+                st.markdown(f"- {chk}")
+
+        with pitch_col:
+            st.subheader("🗣️ 'Tell Me About Yourself' — Matched to This Role")
+            st.success(res["tell_me_pitch"]["pitch_script"])
+            st.markdown("**How to Deliver It:**")
+            for pil in res["tell_me_pitch"]["key_pillars"]:
+                st.markdown(f"- {pil}")
 
         st.divider()
 
@@ -381,7 +406,7 @@ if analyze_btn:
                 st.info(item)
 
         with rec_col:
-            st.subheader("💡 Resume & Application Recommendations")
+            st.subheader("💡 Recommended Next Steps")
             for rec in res["recommendations"]:
                 st.success(rec)
 
@@ -436,16 +461,19 @@ if analyze_btn:
             f"# Personal Job Match & Interview Prep Report\n\n"
             f"- **Percentile Match Verdict:** {res['apply_decision']} ({res['percentile']}th Percentile)\n"
             f"- **Verdict Rationale:** {res['apply_summary']}\n"
+            f"- **Company:** {res['company_brief']['company_label']}\n"
             f"- **Target Role:** {target_role} ({target_location or 'Any Location'})\n"
             f"- **Composite Fit:** {res['composite_score']}% (Z-Score: {res['z_score']:+.2f}, {res['percentile']}th Percentile)\n"
             f"- **Skills Match:** {res['skill_match_score']}% | **Context Match:** {res['contextual_score']}%\n"
             f"- **HR & People Index:** {res['people_analytics_index']}%\n"
             f"- **Projected Tier:** {res['tier']}\n\n"
+            f"## About the Company\n{res['company_brief']['theme_summary']}\n\n"
+            f"## Tell Me About Yourself (Matched to Role)\n{res['tell_me_pitch']['pitch_script']}\n\n"
             f"## Matched Skills\n{', '.join(res['matched_skills']) or 'None'}\n\n"
             f"## Missing JD Skills\n{', '.join(res['missing_skills']) or 'None'}\n\n"
             f"{prep_md}"
             f"## Detailed Insights\n" + "\n".join([f"- {i}" for i in res["insights"]]) + "\n\n"
-            f"## Recommendations\n" + "\n".join([f"- {r}" for r in res["recommendations"]]) + "\n"
+            f"## Recommended Next Steps\n" + "\n".join([f"- {r}" for r in res["recommendations"]]) + "\n"
         )
         ex1, ex2 = st.columns(2)
         ex1.download_button(

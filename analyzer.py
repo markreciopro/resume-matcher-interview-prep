@@ -150,6 +150,104 @@ def estimate_experience_signals(resume_text: str, jd_text: str) -> dict:
         "exp_gap": (years_found - jd_years_req) if (jd_years_req > 0 and years_found > 0) else 0
     }
 
+def build_company_brief(jd_text: str, company_name: str, role_title: str) -> dict:
+    """Extracts company signals from the pasted JD and optional company input."""
+    jd_lower = jd_text.lower()
+    detected_name = (company_name or "").strip()
+
+    if not detected_name:
+        patterns = [
+            r'(?:about\s+us|who\s+we\s+are|join\s+)[:\-\s]*([A-Z][A-Za-z0-9&.,\s]{2,40}?)(?:\s+is\b|\s+seeks\b|\s+offers\b|\.)',
+            r'([A-Z][A-Za-z0-9&.-]+(?:\s+[A-Z][A-Za-z0-9&.-]+){0,3})\s+is\s+(?:a\s+leading|an\s+innovative|a\s+fast-growing|looking\s+for)'
+        ]
+        for pat in patterns:
+            m = re.search(pat, jd_text)
+            if m:
+                candidate = m.group(1).strip(" .,-")
+                if len(candidate.split()) <= 5 and candidate.lower() not in {"the role", "this position", "we", "our team"}:
+                    detected_name = candidate
+                    break
+
+    company_label = detected_name if detected_name else "the hiring organization"
+
+    # Extract any "About Us" / company intro snippet from JD
+    about_match = re.search(
+        r'(?:about\s+(?:the\s+company|us|organization)|who\s+we\s+are)[:\s\-]*([^\n]+(?:\n[^\n]+){0,2})',
+        jd_text,
+        flags=re.IGNORECASE
+    )
+    jd_excerpt = re.sub(r'\s+', ' ', about_match.group(1)).strip() if about_match else ""
+
+    # Detect domain & operational themes in the JD
+    themes = []
+    if any(k in jd_lower for k in ["hospitality", "hotel", "resort", "guest", "event", "convention"]):
+        themes.append("hospitality, guest/event operations, or high-touch service delivery")
+    if any(k in jd_lower for k in ["payroll", "hris", "workforce", "headcount", "scheduling", "human resources", "people"]):
+        themes.append("workforce management, scheduling/payroll accuracy, and people analytics")
+    if any(k in jd_lower for k in ["sql", "power bi", "tableau", "python", "dashboard", "forecast", "analytics", "bi"]):
+        themes.append("data-driven reporting, BI visualization, and operational forecasting")
+    if any(k in jd_lower for k in ["compliance", "audit", "process improvement", "efficiency", "cost", "budget"]):
+        themes.append("cost discipline, compliance rigor, and repeatable process improvement")
+
+    theme_summary = (
+        f"Based on the job description, {company_label} is hiring for **{role_title or 'this role'}** with emphasis on "
+        + (", ".join(themes[:-1]) + f", and {themes[-1]}" if len(themes) > 1 else (themes[0] if themes else "structured analytics and cross-functional execution"))
+        + "."
+    )
+
+    research_checks = [
+        f"Review {company_label}'s recent news, leadership priorities, and core products/services to tie your analytics recommendations directly to their revenue and cost goals.",
+        f"Look up the team structure on LinkedIn to see how {role_title or 'this role'} partners with Operations, HR/People, Finance, and leadership.",
+        "Note specific metrics, software platforms, or compliance rules mentioned in the posting so you can reference them naturally in conversation."
+    ]
+
+    return {
+        "company_label": company_label,
+        "theme_summary": theme_summary,
+        "jd_excerpt": jd_excerpt,
+        "research_checks": research_checks
+    }
+
+def build_tell_me_about_yourself(
+    role_title: str,
+    company_label: str,
+    unique_matched: list[str],
+    top_axis: str,
+    composite_score: float,
+    percentile: float,
+    exp_info: dict
+) -> dict:
+    """Generates a tailored 'Tell Me About Yourself' pitch aligned to the role and parsed resume."""
+    role_label = (role_title or "this analyst role").strip()
+    matched_top = [s.title() for s in unique_matched[:4]]
+    tools_phrase = ", ".join(matched_top) if matched_top else "Excel, SQL, Power BI, and Python"
+
+    yrs_phrase = (
+        f"with roughly {exp_info['resume_years']} years of hands-on experience"
+        if exp_info["resume_years"] > 0
+        else "with extensive hands-on experience"
+    )
+
+    pitch_30_60 = (
+        f"\"I'm a data and operations analyst {yrs_phrase} turning workforce, scheduling, payroll, and operational records "
+        f"into clear reporting and decision support using {tools_phrase}. In my recent roles, I've built automated tracking "
+        f"and forecasting workflows that cut manual reporting effort, improved labor and compliance visibility, and helped reduce "
+        f"operating expenses by 15%. Because my strongest alignment for this {role_label} position is in {top_axis} "
+        f"({percentile}th percentile fit), I'm excited about the opportunity to bring structured analysis and practical execution "
+        f"to {company_label}.\""
+    )
+
+    key_pillars = [
+        f"**Opening Hook:** Start with your core identity—an analytical operator who pairs {tools_phrase} with real-world workforce and operational context.",
+        f"**Proof of Impact:** Cite concrete outcomes—cutting operating expenses by 15%, replacing error-prone manual tracking, and delivering forecasts leaders can act on quickly.",
+        f"**Why This Role & Company ({company_label}):** Connect your {top_axis} strength directly to the core responsibilities of {role_label}."
+    ]
+
+    return {
+        "pitch_script": pitch_30_60,
+        "key_pillars": key_pillars
+    }
+
 def build_interview_prep(
     role_title: str,
     unique_matched: list[str],
@@ -246,7 +344,8 @@ def analyze_candidate_fit(
     jd_text: str,
     benchmark_mean: float = 65.0,
     benchmark_std: float = 12.0,
-    role_title: str = "Data and Business Analyst"
+    role_title: str = "Data and Business Analyst",
+    company_name: str = ""
 ) -> dict:
     vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2))
     tfidf_matrix = vectorizer.fit_transform([resume_text, jd_text])
@@ -354,7 +453,6 @@ def analyze_candidate_fit(
         secondary_color="red"
     )
 
-    # Percentile-driven Strong Match & Apply Verdict
     if percentile >= 75.0:
         match_strength_label = "STRONG MATCH TO APPLY"
         apply_decision = "STRONG MATCH — RECOMMENDED TO APPLY"
@@ -382,6 +480,22 @@ def analyze_candidate_fit(
             f"Your resume is NOT A STRONG MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
             f"below the pool median (μ={benchmark_mean}). Focus on higher-percentile roles or strengthen missing skills first."
         )
+
+    company_brief = build_company_brief(
+        jd_text=jd_text,
+        company_name=company_name,
+        role_title=role_title
+    )
+
+    tell_me_pitch = build_tell_me_about_yourself(
+        role_title=role_title,
+        company_label=company_brief["company_label"],
+        unique_matched=unique_matched,
+        top_axis=top_axis_row["Category"],
+        composite_score=composite_score,
+        percentile=percentile,
+        exp_info=exp_info
+    )
 
     interview_prep = build_interview_prep(
         role_title=role_title,
@@ -437,6 +551,8 @@ def analyze_candidate_fit(
         "apply_badge_type": apply_badge_type,
         "apply_summary": apply_summary,
         "is_good_match": is_good_match,
+        "company_brief": company_brief,
+        "tell_me_pitch": tell_me_pitch,
         "interview_prep": interview_prep,
         "resume_highlighted_html": resume_highlighted_html,
         "jd_highlighted_html": jd_highlighted_html,
