@@ -93,11 +93,6 @@ def build_highlighted_html(
     secondary_canonical: list[str],
     secondary_color: str = "blue"
 ) -> str:
-    """
-    Escapes text safely and highlights matched/missing/bonus skill phrases inline.
-    - green_canonical: matched between resume and JD
-    - secondary_canonical: missing JD skills (red) or bonus resume skills (blue)
-    """
     escaped_text = html.escape(text)
     alias_to_style = {}
 
@@ -159,62 +154,97 @@ def build_interview_prep(
     role_title: str,
     unique_matched: list[str],
     unique_missing: list[str],
+    axis_details: dict,
     top_axis: str,
-    hr_score: float,
-    ops_score: float,
+    low_axis: str,
     exp_info: dict
 ) -> dict:
+    """Dynamically tailors interview focus points and questions to the exact parsed resume & JD."""
     role_label = (role_title or "this role").strip()
-    matched_titles = [s.title() for s in unique_matched]
-    missing_titles = [s.title() for s in unique_missing]
-
     focus_points = []
+    questions_to_ask = []
 
-    if matched_titles:
-        core_tools = ", ".join(matched_titles[:5])
+    # 1. Axis-specific matched strengths from this exact parse
+    strong_axes = [
+        (cat, info) for cat, info in axis_details.items()
+        if info["matched"] or info["score"] >= 75.0
+    ]
+    if strong_axes:
+        top_cat, top_info = max(strong_axes, key=lambda item: (len(item[1]["matched"]), item[1]["score"]))
+        matched_on_top = [s.title() for s in top_info["matched"]]
+        if matched_on_top:
+            focus_points.append(
+                f"**{top_cat} ({top_info['score']}% match):** Lead with your verified JD matches in this parse—**{', '.join(matched_on_top)}**—and walk through how you built repeatable reports, models, or workflows that delivered measurable results."
+            )
+        else:
+            resume_on_top = [s.title() for s in top_info["resume_has"][:4]]
+            focus_points.append(
+                f"**{top_cat} ({top_info['score']}% readiness):** Highlight your resume depth in **{', '.join(resume_on_top) if resume_on_top else top_cat}** and connect it directly to the operational problems described in this job posting."
+            )
+
+    # 2. Secondary matched skills across other domains in this parse
+    other_matched = [s.title() for s in unique_matched if s not in axis_details.get(top_axis, {}).get("matched", [])]
+    if other_matched:
         focus_points.append(
-            f"**Lead with Core Stack Proof ({core_tools}):** Walk through a concrete before-and-after example where you turned raw operational, payroll, or scheduling records into automated dashboards and decision-ready reports."
+            f"**Cross-Domain Matched Proof ({', '.join(other_matched[:5])}):** Prepare one crisp STAR example per matched skill showing data accuracy, stakeholder adoption, and business or labor cost impact."
+        )
+    elif unique_matched:
+        focus_points.append(
+            f"**Core Matched Capabilities ({', '.join([s.title() for s in unique_matched[:5]])}):** Frame each matched capability around how quickly it moves an insight from raw data to an operational decision."
         )
 
-    focus_points.append(
-        f"**Anchor on Your Strongest Domain ({top_axis}):** Highlight measurable business impact—such as reducing operating/labor costs by 15%, cutting manual spreadsheet work, and improving staffing/forecast accuracy."
-    )
-
-    if hr_score >= 60 or ops_score >= 60:
+    # 3. Missing JD skills & lowest axis in this exact parse
+    gap_axes = [(cat, info) for cat, info in axis_details.items() if info["missing"]]
+    if unique_missing:
+        missing_titles = [s.title() for s in unique_missing]
+        gap_cat_names = [cat for cat, _ in gap_axes]
         focus_points.append(
-            "**Connect Workforce Data to Financial Outcomes:** Emphasize how you bridge HR/payroll compliance, timekeeping, and headcount utilization directly to revenue protection and margin control."
-        )
-
-    if missing_titles:
-        gaps_str = ", ".join(missing_titles[:4])
-        focus_points.append(
-            f"**Prepare a Bridge Story for Skill Gaps ({gaps_str}):** Acknowledge where your direct title exposure is lighter, then pivot immediately to adjacent analytical workflows and fast self-directed ramp-up."
+            f"**Bridge Unmatched JD Skills ({', '.join(missing_titles[:5])}):** For skills flagged missing in **{', '.join(gap_cat_names[:3]) or low_axis}**, point to adjacent tools, analytical methods, or domain work you already execute and explain how you ramp up fast."
         )
     else:
         focus_points.append(
-            "**Differentiate with Executive Storytelling:** Since all core JD skills align, focus on how you translate complex SQL/Python/BI outputs into clear recommendations for non-technical leaders."
+            f"**Zero Missing JD Skills Flagged:** Every tracked skill in this job description matched your resume—use the interview to go deep on architecture, edge cases, and executive communication rather than basic tool proficiency."
         )
 
-    if exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0 and exp_info["exp_gap"] < 0:
-        focus_points.append(
-            f"**Address Tenure Delta ({exp_info['resume_years']} yrs vs. {exp_info['jd_years']}+ yrs):** Frame your multi-industry operations and analytics background as compressed, high-ownership experience across full reporting lifecycles."
-        )
+    # 4. Experience / tenure signal from this parse
+    if exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0:
+        if exp_info["exp_gap"] < 0:
+            focus_points.append(
+                f"**Tenure Framing (~{exp_info['resume_years']} yrs parsed vs. {exp_info['jd_years']}+ yrs in JD):** Emphasize end-to-end ownership, cross-functional scope, and quantified cost/efficiency wins to offset the {abs(exp_info['exp_gap'])}-year nominal gap."
+            )
+        else:
+            focus_points.append(
+                f"**Tenure Advantage (~{exp_info['resume_years']} yrs parsed vs. {exp_info['jd_years']}+ yrs in JD):** Your experience meets or exceeds the posting's tenure bar—emphasize mentoring, process standardization, and strategic decision support."
+            )
 
-    questions_to_ask = [
-        f"**90-Day Impact & Priorities:** What are the top one or two reporting bottlenecks or operational decisions you need the {role_label} to solve in the first 90 days?",
-        "**Data Stack & Source Maturity:** Where does the team's data currently live (HRIS, payroll, ERP, spreadsheets, or SQL warehouse), and how much time is spent on data cleaning vs. analysis?",
-        "**Key Performance Metrics:** Which metrics matter most to leadership right now—labor cost variance, turnover/retention, forecast accuracy, or process turnaround time?",
-        "**Cross-Functional Stakeholders:** Who are the primary internal consumers of these dashboards and insights (HR, Finance, Operations, or Executive Leadership), and how frequently do they review them?"
-    ]
+    # Smart Questions dynamically tailored to the exact parse results
+    questions_to_ask.append(
+        f"**Immediate Priorities for {role_label}:** Given the focus on **{low_axis}** and the core deliverables in this posting, what is the single highest-priority problem you need solved in the first 60–90 days?"
+    )
 
-    if missing_titles:
+    if unique_missing:
+        top_gaps_q = ", ".join([s.title() for s in unique_missing[:3]])
         questions_to_ask.append(
-            f"**Tooling & Workflow Depth:** I noticed {missing_titles[0]} mentioned in the job description—how heavily is that used day-to-day versus your core BI and spreadsheet tools?"
+            f"**Role Expectations Around {top_gaps_q}:** How central are **{top_gaps_q}** to day-to-day execution on this team, and where is there flexibility to leverage adjacent analytics, BI, and operational workflows?"
         )
+
+    if unique_matched:
+        top_matched_q = ", ".join([s.title() for s in unique_matched[:3]])
+        questions_to_ask.append(
+            f"**Applying {top_matched_q} in Production:** How does the team currently use **{top_matched_q}** in its reporting or decision pipeline, and what data-quality or workflow bottlenecks would you want improved first?"
+        )
+
+    questions_to_ask.append(
+        f"**Success Metrics & Stakeholder Alignment:** How is success measured for this role over the first six months across **{top_axis}** and **{low_axis}**, and which teams partner most closely with the analyst?"
+    )
+
+    questions_to_ask.append(
+        "**Team & Tooling Roadmap:** What tools, data sources, or reporting processes are actively evolving over the next year, and how does the team support analysts in adopting new workflows?"
+    )
 
     return {
-        "focus_points": focus_points,
-        "questions_to_ask": questions_to_ask
+        "focus_points": focus_points[:5],
+        "questions_to_ask": questions_to_ask[:5]
     }
 
 def analyze_candidate_fit(
@@ -317,7 +347,6 @@ def analyze_candidate_fit(
     unique_missing = sorted(set(all_missing))
     bonus_resume_skills = sorted(set(all_resume_skills) - set(unique_matched))
 
-    # Build side-by-side highlighted HTML documents
     resume_highlighted_html = build_highlighted_html(
         text=resume_text,
         green_canonical=unique_matched,
@@ -363,9 +392,9 @@ def analyze_candidate_fit(
         role_title=role_title,
         unique_matched=unique_matched,
         unique_missing=unique_missing,
+        axis_details=axis_details,
         top_axis=top_axis_row["Category"],
-        hr_score=hr_score,
-        ops_score=ops_score,
+        low_axis=low_axis_row["Category"],
         exp_info=exp_info
     )
 
@@ -396,7 +425,7 @@ def analyze_candidate_fit(
 
     if unique_matched:
         top_m = ", ".join([s.title() for s in unique_matched[:5]])
-        recommendations.append(f"Highlight quantified outcomes (15% cost reduction, automated reporting hours saved, forecast accuracy) alongside your verified strengths: {top_m}.")
+        recommendations.append(f"Highlight quantified outcomes alongside your verified strengths: {top_m}.")
 
     if unique_missing:
         top_x = ", ".join([s.title() for s in unique_missing[:5]])
