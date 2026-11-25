@@ -18,7 +18,7 @@ st.set_page_config(
 
 st.title("🎯 Personal Job Match & Interview Prep Studio")
 st.markdown(
-    "Evaluate **role fit**, **Apply / Do Not Apply verdict**, **Normal Distribution performance positioning**, **6-Axis Competency Radar**, **Heatmap & Donut breakdowns**, **Interview Focus Points**, and **Indeed Easily Apply** links."
+    "Evaluate **role fit**, **Apply / Do Not Apply verdict**, **side-by-side Resume & JD match highlights**, **Normal Distribution performance positioning**, **6-Axis Competency Radar**, **Interview Focus Points**, and **Indeed Easily Apply** links."
 )
 
 with st.sidebar:
@@ -86,6 +86,36 @@ if analyze_btn:
             st.warning(verdict_msg)
         else:
             st.error(verdict_msg)
+
+        st.divider()
+
+        # Side-by-Side Highlighted Resume vs. Pasted Job Description
+        st.subheader("📄 Side-by-Side Resume & Job Description Match Viewer")
+        st.markdown(
+            "Highlight Legend: "
+            "<mark style='background-color: rgba(0, 204, 150, 0.28); border-bottom: 2px solid #00CC96; padding: 1px 6px; border-radius: 4px; color: inherit;'><b>Green = Matched in Both</b></mark> &nbsp;|&nbsp; "
+            "<mark style='background-color: rgba(239, 85, 59, 0.28); border-bottom: 2px solid #EF553B; padding: 1px 6px; border-radius: 4px; color: inherit;'><b>Red = Missing from Resume (In JD)</b></mark> &nbsp;|&nbsp; "
+            "<mark style='background-color: rgba(99, 110, 250, 0.25); border-bottom: 2px solid #636EFA; padding: 1px 6px; border-radius: 4px; color: inherit;'><b>Blue = Additional Resume Skills</b></mark>",
+            unsafe_allow_html=True
+        )
+
+        doc_col1, doc_col2 = st.columns(2)
+        with doc_col1:
+            st.markdown("#### 👤 Your Parsed Resume (Highlighted)")
+            st.markdown(
+                f"<div style='height: 400px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
+                f"{res['resume_highlighted_html']}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+        with doc_col2:
+            st.markdown("#### 📋 Pasted Job Description (Highlighted)")
+            st.markdown(
+                f"<div style='height: 400px; overflow-y: auto; padding: 14px; border: 1px solid rgba(128,128,128,0.35); border-radius: 8px; line-height: 1.6; font-size: 14px;'>"
+                f"{res['jd_highlighted_html']}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
         st.divider()
 
@@ -323,7 +353,7 @@ if analyze_btn:
         with c_tbl:
             st.dataframe(cat_df, use_container_width=True, hide_index=True)
 
-        # Interview Readiness & Focus Points (shown when resume is a good or conditional match)
+        # Interview Readiness & Focus Points
         st.divider()
         st.subheader("🎤 Interview Invite Preparation: Focus Points & Questions to Ask")
         if res["is_good_match"]:

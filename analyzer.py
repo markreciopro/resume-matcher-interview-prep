@@ -1,4 +1,5 @@
-﻿import re
+﻿import html
+import re
 from urllib.parse import quote_plus
 import numpy as np
 import pandas as pd
@@ -69,8 +70,9 @@ def extract_text_from_file(uploaded_file) -> str:
     return clean_text(text)
 
 def clean_text(text: str) -> str:
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
+    lines = [re.sub(r'[ \t]+', ' ', line).strip() for line in text.splitlines()]
+    cleaned = "\n".join([line for line in lines if line])
+    return cleaned.strip()
 
 def extract_skills_by_category(text: str) -> dict:
     text_lower = text.lower()
@@ -84,6 +86,61 @@ def extract_skills_by_category(text: str) -> dict:
                     break
         found[category] = matched_canonical
     return found
+
+def build_highlighted_html(
+    text: str,
+    green_canonical: list[str],
+    secondary_canonical: list[str],
+    secondary_color: str = "blue"
+) -> str:
+    """
+    Escapes text safely and highlights matched/missing/bonus skill phrases inline.
+    - green_canonical: matched between resume and JD
+    - secondary_canonical: missing JD skills (red) or bonus resume skills (blue)
+    """
+    escaped_text = html.escape(text)
+    alias_to_style = {}
+
+    for category, skill_map in COMPETENCY_TAXONOMY.items():
+        for canonical_skill, aliases in skill_map.items():
+            if canonical_skill in green_canonical:
+                for alias in aliases:
+                    alias_to_style[alias] = (
+                        "background-color: rgba(0, 204, 150, 0.28); "
+                        "border-bottom: 2px solid #00CC96; "
+                        "padding: 1px 4px; border-radius: 4px; font-weight: 600;"
+                    )
+            elif canonical_skill in secondary_canonical:
+                for alias in aliases:
+                    if secondary_color == "red":
+                        alias_to_style[alias] = (
+                            "background-color: rgba(239, 85, 59, 0.28); "
+                            "border-bottom: 2px solid #EF553B; "
+                            "padding: 1px 4px; border-radius: 4px; font-weight: 600;"
+                        )
+                    else:
+                        alias_to_style[alias] = (
+                            "background-color: rgba(99, 110, 250, 0.25); "
+                            "border-bottom: 2px solid #636EFA; "
+                            "padding: 1px 4px; border-radius: 4px; font-weight: 500;"
+                        )
+
+    if not alias_to_style:
+        return escaped_text.replace("\n", "<br>")
+
+    sorted_aliases = sorted(alias_to_style.keys(), key=len, reverse=True)
+    pattern = re.compile(
+        r'\b(' + '|'.join(re.escape(html.escape(a)) for a in sorted_aliases) + r')\b',
+        flags=re.IGNORECASE
+    )
+
+    def _replace(match):
+        matched_word = match.group(0)
+        style = alias_to_style.get(matched_word.lower(), "")
+        return f'<mark style="color: inherit; {style}">{matched_word}</mark>'
+
+    highlighted = pattern.sub(_replace, escaped_text)
+    return highlighted.replace("\n", "<br>")
 
 def estimate_experience_signals(resume_text: str, jd_text: str) -> dict:
     year_matches = re.findall(r'(\d{1,2})\+?\s*(?:years?|yrs?)\s+(?:of\s+)?(?:[\w\s,&/-]{0,30}?)(?:experience|exp)', resume_text.lower())
@@ -107,7 +164,6 @@ def build_interview_prep(
     ops_score: float,
     exp_info: dict
 ) -> dict:
-    """Generates personalized interview talking points and questions to ask the interviewer."""
     role_label = (role_title or "this role").strip()
     matched_titles = [s.title() for s in unique_matched]
     missing_titles = [s.title() for s in unique_missing]
@@ -182,6 +238,7 @@ def analyze_candidate_fit(
     total_matched_skills = 0
     all_missing = []
     all_matched = []
+    all_resume_skills = []
 
     for cat in COMPETENCY_TAXONOMY.keys():
         req = jd_skills[cat]
@@ -193,6 +250,7 @@ def analyze_candidate_fit(
         total_matched_skills += len(matched)
         all_missing.extend(missing)
         all_matched.extend(matched)
+        all_resume_skills.extend(list(has))
 
         if len(req) > 0:
             cat_score = round((len(matched) / len(req)) * 100, 1)
@@ -257,6 +315,21 @@ def analyze_candidate_fit(
 
     unique_matched = sorted(set(all_matched))
     unique_missing = sorted(set(all_missing))
+    bonus_resume_skills = sorted(set(all_resume_skills) - set(unique_matched))
+
+    # Build side-by-side highlighted HTML documents
+    resume_highlighted_html = build_highlighted_html(
+        text=resume_text,
+        green_canonical=unique_matched,
+        secondary_canonical=bonus_resume_skills,
+        secondary_color="blue"
+    )
+    jd_highlighted_html = build_highlighted_html(
+        text=jd_text,
+        green_canonical=unique_matched,
+        secondary_canonical=unique_missing,
+        secondary_color="red"
+    )
 
     severe_exp_gap = (exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0 and exp_info["exp_gap"] <= -3)
     is_good_match = False
@@ -340,6 +413,8 @@ def analyze_candidate_fit(
         "apply_summary": apply_summary,
         "is_good_match": is_good_match,
         "interview_prep": interview_prep,
+        "resume_highlighted_html": resume_highlighted_html,
+        "jd_highlighted_html": jd_highlighted_html,
         "composite_score": composite_score,
         "skill_match_score": round(skill_match_score, 1),
         "contextual_score": contextual_score,
