@@ -159,12 +159,10 @@ def build_interview_prep(
     low_axis: str,
     exp_info: dict
 ) -> dict:
-    """Dynamically tailors interview focus points and questions to the exact parsed resume & JD."""
     role_label = (role_title or "this role").strip()
     focus_points = []
     questions_to_ask = []
 
-    # 1. Axis-specific matched strengths from this exact parse
     strong_axes = [
         (cat, info) for cat, info in axis_details.items()
         if info["matched"] or info["score"] >= 75.0
@@ -182,7 +180,6 @@ def build_interview_prep(
                 f"**{top_cat} ({top_info['score']}% readiness):** Highlight your resume depth in **{', '.join(resume_on_top) if resume_on_top else top_cat}** and connect it directly to the operational problems described in this job posting."
             )
 
-    # 2. Secondary matched skills across other domains in this parse
     other_matched = [s.title() for s in unique_matched if s not in axis_details.get(top_axis, {}).get("matched", [])]
     if other_matched:
         focus_points.append(
@@ -193,7 +190,6 @@ def build_interview_prep(
             f"**Core Matched Capabilities ({', '.join([s.title() for s in unique_matched[:5]])}):** Frame each matched capability around how quickly it moves an insight from raw data to an operational decision."
         )
 
-    # 3. Missing JD skills & lowest axis in this exact parse
     gap_axes = [(cat, info) for cat, info in axis_details.items() if info["missing"]]
     if unique_missing:
         missing_titles = [s.title() for s in unique_missing]
@@ -203,10 +199,9 @@ def build_interview_prep(
         )
     else:
         focus_points.append(
-            f"**Zero Missing JD Skills Flagged:** Every tracked skill in this job description matched your resume—use the interview to go deep on architecture, edge cases, and executive communication rather than basic tool proficiency."
+            "**Zero Missing JD Skills Flagged:** Every tracked skill in this job description matched your resume—use the interview to go deep on architecture, edge cases, and executive communication rather than basic tool proficiency."
         )
 
-    # 4. Experience / tenure signal from this parse
     if exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0:
         if exp_info["exp_gap"] < 0:
             focus_points.append(
@@ -217,7 +212,6 @@ def build_interview_prep(
                 f"**Tenure Advantage (~{exp_info['resume_years']} yrs parsed vs. {exp_info['jd_years']}+ yrs in JD):** Your experience meets or exceeds the posting's tenure bar—emphasize mentoring, process standardization, and strategic decision support."
             )
 
-    # Smart Questions dynamically tailored to the exact parse results
     questions_to_ask.append(
         f"**Immediate Priorities for {role_label}:** Given the focus on **{low_axis}** and the core deliverables in this posting, what is the single highest-priority problem you need solved in the first 60–90 days?"
     )
@@ -360,32 +354,33 @@ def analyze_candidate_fit(
         secondary_color="red"
     )
 
-    severe_exp_gap = (exp_info["jd_years"] > 0 and exp_info["resume_years"] > 0 and exp_info["exp_gap"] <= -3)
-    is_good_match = False
-
-    if composite_score >= 68.0 and len(unique_missing) <= 4 and not severe_exp_gap:
-        apply_decision = "RECOMMENDED TO APPLY"
+    # Percentile-driven Strong Match & Apply Verdict
+    if percentile >= 75.0:
+        match_strength_label = "STRONG MATCH TO APPLY"
+        apply_decision = "STRONG MATCH — RECOMMENDED TO APPLY"
         apply_badge_type = "success"
         is_good_match = True
         apply_summary = (
-            f"Strong statistical and competency alignment ({composite_score}% composite, {percentile}th percentile). "
-            f"Apply promptly and use the Interview Prep Focus Points below to prepare for your invite."
+            f"Your resume is a STRONG MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
+            f"placing you in the top quartile of the pool (μ={benchmark_mean}, σ={benchmark_std}). Apply promptly and prep for your interview below."
         )
-    elif composite_score >= 48.0 and not severe_exp_gap:
-        apply_decision = "CONDITIONAL APPLY (TAILOR FIRST)"
+    elif percentile >= 50.0:
+        match_strength_label = "MODERATE MATCH — TAILOR & APPLY"
+        apply_decision = "MODERATE MATCH — TAILOR RESUME THEN APPLY"
         apply_badge_type = "warning"
         is_good_match = True
         apply_summary = (
-            f"Solid baseline alignment ({composite_score}% composite, {percentile}th percentile). "
-            f"Tailor your top bullets to mirror the JD, then use the Interview Prep Focus Points below."
+            f"Your resume is a MODERATE MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
+            f"above the pool average (μ={benchmark_mean}). Tailor your resume to match JD wording before applying."
         )
     else:
-        apply_decision = "NOT RECOMMENDED TO APPLY NOW"
+        match_strength_label = "NOT A STRONG MATCH TO APPLY"
+        apply_decision = "NOT A STRONG MATCH — DO NOT APPLY YET"
         apply_badge_type = "error"
         is_good_match = False
         apply_summary = (
-            f"Low current alignment ({composite_score}% composite, {percentile}th percentile) or wide experience gap. "
-            f"Prioritize higher-fit roles from the Indeed Easy Apply links below."
+            f"Your resume is NOT A STRONG MATCH at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%), "
+            f"below the pool median (μ={benchmark_mean}). Focus on higher-percentile roles or strengthen missing skills first."
         )
 
     interview_prep = build_interview_prep(
@@ -399,7 +394,7 @@ def analyze_candidate_fit(
     )
 
     insights = [
-        f"Overall Fit & Distribution: {composite_score}% composite score places your profile at the {percentile}th percentile (Z = {z_score:+.2f}) relative to μ={benchmark_mean}, σ={benchmark_std}.",
+        f"Percentile Verdict ({match_strength_label}): You rank at the {percentile}th percentile (Z = {z_score:+.2f}, composite {composite_score}%) against a μ={benchmark_mean}, σ={benchmark_std} pool.",
         f"Competency Radar Balance: Strongest domain is {top_axis_row['Category']} ({top_axis_row['Category Match (%)']}%), while {low_axis_row['Category']} ({low_axis_row['Category Match (%)']}%) is the primary area to watch.",
         f"HR & People Analytics Signal: People Analytics Index is {people_analytics_index}% (HR/People: {hr_score}%, Workforce/Labor Ops: {ops_score}%, Leadership: {lead_score}%), projecting {ramp_up.lower()}.",
         f"Keyword & Narrative Alignment: Matched {len(unique_matched)} JD skill areas and achieved a {contextual_score}% contextual phrasing score against {len(unique_missing)} unmatched JD skill area(s)."
@@ -416,12 +411,12 @@ def analyze_candidate_fit(
             )
 
     recommendations = []
-    if apply_decision == "RECOMMENDED TO APPLY":
-        recommendations.append("Submit your application promptly while the posting is active; lead your summary and top 3 bullets with your strongest matched tools and quantified outcomes.")
-    elif apply_decision == "CONDITIONAL APPLY (TAILOR FIRST)":
-        recommendations.append("Tailor your resume summary and top experience bullets to mirror the job description's exact phrasing before applying.")
+    if percentile >= 75.0:
+        recommendations.append(f"Strong {percentile}th-percentile match—submit your application right away and lead with your top matched tools and quantified outcomes.")
+    elif percentile >= 50.0:
+        recommendations.append(f"Moderate {percentile}th-percentile match—mirror key phrases from the job description in your summary and top bullets to push into the 75th+ percentile range.")
     else:
-        recommendations.append("Skip low-ROI applications here and focus on the pre-filtered Indeed Easy Apply searches below that match your core analytics stack.")
+        recommendations.append(f"Below-median {percentile}th-percentile match—skip this posting for now and target roles where your core skills put you at the 75th percentile or higher.")
 
     if unique_matched:
         top_m = ", ".join([s.title() for s in unique_matched[:5]])
@@ -437,6 +432,7 @@ def analyze_candidate_fit(
         recommendations.append("Boost ATS and recruiter alignment by incorporating exact action verbs and KPI terms from the job posting.")
 
     return {
+        "match_strength_label": match_strength_label,
         "apply_decision": apply_decision,
         "apply_badge_type": apply_badge_type,
         "apply_summary": apply_summary,

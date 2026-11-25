@@ -18,7 +18,7 @@ st.set_page_config(
 
 st.title("🎯 Personal Job Match & Interview Prep Studio")
 st.markdown(
-    "Evaluate **role fit**, **Apply / Do Not Apply verdict**, **side-by-side Resume & JD match highlights**, **Normal Distribution performance positioning**, **6-Axis Competency Radar**, **Interview Focus Points**, and **Indeed Easily Apply** links."
+    "Evaluate **percentile-based match strength**, **Apply / Do Not Apply verdict**, **side-by-side Resume & JD match highlights**, **Normal Distribution performance positioning**, **6-Axis Competency Radar**, **Interview Focus Points**, and **Indeed Easily Apply** links."
 )
 
 with st.sidebar:
@@ -28,8 +28,8 @@ with st.sidebar:
     pool_std = st.slider("Standard Deviation (σ)", 5.0, 20.0, 12.0, 0.5)
     target_bar = st.slider("Radar Target Threshold (%)", 40.0, 100.0, 75.0, 5.0)
     st.divider()
-    st.markdown("**Bell Curve Zones**")
-    st.caption("• Within ±1σ: ~68.2% of pool\n• Within ±2σ: ~95.4% of pool\n• ≥ +1σ (84th+ pct): High-readiness tier")
+    st.markdown("**Percentile & Match Guide**")
+    st.caption("• ≥ 75th pct: Strong Match to Apply\n• 50th–74th pct: Moderate Match (Tailor First)\n• < 50th pct: Not a Strong Match Yet")
 
 st.subheader("🔍 Target Role & Indeed Search Filters")
 r_col1, r_col2, r_col3 = st.columns([2, 2, 1])
@@ -78,8 +78,8 @@ if analyze_btn:
         )
 
         st.divider()
-        st.subheader("🚦 Application Decision Verdict")
-        verdict_msg = f"**Decision: {res['apply_decision']}** — {res['apply_summary']}"
+        st.subheader("🚦 Percentile-Based Application Verdict")
+        verdict_msg = f"**{res['apply_decision']} ({res['percentile']}th Percentile)** — {res['apply_summary']}"
         if res["apply_badge_type"] == "success":
             st.success(verdict_msg)
         elif res["apply_badge_type"] == "warning":
@@ -123,7 +123,7 @@ if analyze_btn:
         c_bell, c_radar = st.columns([3, 2])
 
         with c_bell:
-            st.subheader("🔔 Normal Distribution Bell Curve: Performance Prediction")
+            st.subheader("🔔 Normal Distribution Bell Curve: Percentile Positioning")
             x = np.linspace(max(0, pool_mean - 4 * pool_std), min(100, pool_mean + 4 * pool_std), 600)
             y = norm.pdf(x, pool_mean, pool_std)
 
@@ -138,7 +138,7 @@ if analyze_btn:
             x_cdf = x[x <= res["composite_score"]]
             y_cdf = norm.pdf(x_cdf, pool_mean, pool_std)
             fig_bell.add_trace(go.Scatter(
-                x=x_cdf, y=y_cdf, mode="lines", name=f"Percentile Area ({res['percentile']}%)",
+                x=x_cdf, y=y_cdf, mode="lines", name=f"Percentile Area ({res['percentile']}th pct)",
                 line=dict(width=0),
                 fill="tozeroy", fillcolor="rgba(0, 204, 150, 0.25)"
             ))
@@ -158,7 +158,7 @@ if analyze_btn:
 
             fig_bell.add_vline(
                 x=res["composite_score"], line_dash="solid", line_color="#EF553B", line_width=3,
-                annotation_text=f"You ({res['composite_score']}% | {res['percentile']}th pct)",
+                annotation_text=f"You ({res['percentile']}th pct | {res['composite_score']}%)",
                 annotation_position="top right"
             )
 
@@ -357,7 +357,7 @@ if analyze_btn:
         st.divider()
         st.subheader("🎤 Interview Invite Preparation: Focus Points & Questions to Ask")
         if res["is_good_match"]:
-            st.caption("Your resume shows strong alignment for an interview invite. Use these tailored talking points and questions to stand out.")
+            st.caption(f"At the {res['percentile']}th percentile ({res['match_strength_label']}), you are well-positioned for an interview invite. Use these tailored talking points and questions:")
             ip_col1, ip_col2 = st.columns(2)
             with ip_col1:
                 st.markdown("#### 📌 Key Focus Points & Talking Stories")
@@ -369,7 +369,7 @@ if analyze_btn:
                     st.success(q)
         else:
             st.warning(
-                "This posting currently falls below the good-match threshold. Focus on tailoring the missing core skills first or apply to the higher-alignment roles below."
+                f"Currently at the {res['percentile']}th percentile ({res['match_strength_label']}). Tailor your resume to the missing skills below or explore higher-fit roles via Indeed Easy Apply."
             )
 
         # Insights & Recommendations
@@ -434,8 +434,8 @@ if analyze_btn:
 
         report_md = (
             f"# Personal Job Match & Interview Prep Report\n\n"
-            f"- **Application Decision:** {res['apply_decision']}\n"
-            f"- **Decision Rationale:** {res['apply_summary']}\n"
+            f"- **Percentile Match Verdict:** {res['apply_decision']} ({res['percentile']}th Percentile)\n"
+            f"- **Verdict Rationale:** {res['apply_summary']}\n"
             f"- **Target Role:** {target_role} ({target_location or 'Any Location'})\n"
             f"- **Composite Fit:** {res['composite_score']}% (Z-Score: {res['z_score']:+.2f}, {res['percentile']}th Percentile)\n"
             f"- **Skills Match:** {res['skill_match_score']}% | **Context Match:** {res['contextual_score']}%\n"
