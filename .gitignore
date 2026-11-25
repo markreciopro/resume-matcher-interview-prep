@@ -1,0 +1,17 @@
+﻿# Personal Job Match & Interview Prep Studio
+
+Streamlit application for evaluating resume-to-job alignment, HR & People Analytics readiness, Normal Distribution performance positioning, 6-axis competency radar, skill coverage heatmaps, interview talking points, and Indeed Easy Apply search links.
+
+## Run Locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+cd $HOME\Documents\resume_matcher_app
+
+@'
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+.streamlit/secrets.toml
