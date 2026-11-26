@@ -19,7 +19,7 @@ st.set_page_config(
 
 st.title("🎯 Personal Job Match & Prescriptive Resume Studio")
 st.markdown(
-    "Powered by **Diagnostic**, **Predictive**, and **Prescriptive Analytics** — evaluate percentile match strength, inspect company and role alignment, and download a customized **SMART-Goal PDF Resume**."
+    "Powered by **Diagnostic**, **Predictive**, and **Prescriptive Analytics** — evaluate percentile match strength, inspect company and role alignment, and download a customized **S-M-A-R-T PDF Resume**."
 )
 
 with st.sidebar:
@@ -29,8 +29,8 @@ with st.sidebar:
     pool_std = st.slider("Standard Deviation (σ)", 5.0, 20.0, 12.0, 0.5)
     target_bar = st.slider("Radar Target Threshold (%)", 40.0, 100.0, 75.0, 5.0)
     st.divider()
-    use_smart_goals = st.checkbox("Format Tailored Resume with SMART Goals", value=True)
-    st.caption("Specific, Measurable, Achievable, Relevant, and Time-Bound bullets.")
+    use_smart_goals = st.checkbox("Build Experience with S-M-A-R-T Goals", value=True)
+    st.caption("**S**pecific • **M**easurable • **A**chievable • **R**elevant • **T**ime-Bound")
     st.divider()
     st.markdown("**Percentile & Match Guide**")
     st.caption("• ≥ 75th pct: Strong Match to Apply\n• 50th–74th pct: Moderate Match (Tailor First)\n• < 50th pct: Not a Strong Match Yet")
@@ -107,24 +107,23 @@ if analyze_btn:
 
         st.divider()
 
-        # Prescriptive Analytics Deliverable: Tailored SMART-Goal PDF Resume Download
+        # Prescriptive Analytics Deliverable: Tailored S-M-A-R-T PDF Resume Download
         st.subheader("📝 Prescriptive Analytics: Tailored PDF Resume Generator")
-        if res["is_good_match"]:
+        if use_smart_goals:
             st.caption(
-                f"Because this role is a {res['match_strength_label']} ({res['percentile']}th percentile), "
-                f"your resume has been customized for **{target_role}** at **{res['company_brief']['company_label']}** "
-                + ("using **SMART Goal** impact bullets." if use_smart_goals else "with role-prioritized skills.")
+                f"Customized for **{target_role}** at **{res['company_brief']['company_label']}** — each work experience defines "
+                f"**S** (Specific), **M** (Measurable), **A** (Achievable), **R** (Relevant), and **T** (Time-Bound)."
             )
         else:
             st.caption(
-                "This posting is currently below the 50th percentile, but you can still preview or download a tailored draft below."
+                f"Customized for **{target_role}** at **{res['company_brief']['company_label']}** with role-prioritized skills and experience."
             )
 
         safe_role_slug = re.sub(r'[^A-Za-z0-9]+', '_', target_role).strip('_') or "Target_Role"
         pdf_filename = f"Mark_Recio_Resume_{safe_role_slug}.pdf"
 
         st.download_button(
-            label=f"⬇️ Download Customized {'SMART-Goal ' if use_smart_goals else ''}PDF Resume ({pdf_filename})",
+            label=f"⬇️ Download Customized {'S-M-A-R-T ' if use_smart_goals else ''}PDF Resume ({pdf_filename})",
             data=res["prescriptive_resume"]["pdf_bytes"],
             file_name=pdf_filename,
             mime="application/pdf",
@@ -132,7 +131,7 @@ if analyze_btn:
             use_container_width=True
         )
 
-        with st.expander("👀 Preview Customized Resume Content Before Downloading", expanded=False):
+        with st.expander("👀 Preview Customized Resume & S-M-A-R-T Breakdown", expanded=True):
             st.markdown(res["prescriptive_resume"]["preview_md"])
 
         st.divider()
@@ -518,6 +517,7 @@ if analyze_btn:
             f"- **Prescriptive:** {res['analytics_stages']['prescriptive']}\n\n"
             f"## About the Company\n{res['company_brief']['theme_summary']}\n\n"
             f"## Tell Me About Yourself (Matched to Role)\n{res['tell_me_pitch']['pitch_script']}\n\n"
+            f"## Tailored Resume Preview\n{res['prescriptive_resume']['preview_md']}\n\n"
             f"## Matched Skills\n{', '.join(res['matched_skills']) or 'None'}\n\n"
             f"## Missing JD Skills\n{', '.join(res['missing_skills']) or 'None'}\n\n"
             f"{prep_md}"

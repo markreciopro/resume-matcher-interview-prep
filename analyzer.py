@@ -374,10 +374,10 @@ def _safe_pdf_text(txt: str) -> str:
     for k, v in replacements.items():
         txt = txt.replace(k, v)
     ascii_safe = txt.encode("latin-1", errors="ignore").decode("latin-1")
-    ascii_safe = re.sub(r'\s+', ' ', ascii_safe).strip()
+    ascii_safe = re.sub(r'[ \t]+', ' ', ascii_safe).strip()
     return re.sub(r'(\S{42})', r'\1 ', ascii_safe)
 
-def _write_wrapped_line(pdf: FPDF, text: str, line_h: float = 4.6, indent: float = 0.0):
+def _write_wrapped_line(pdf: FPDF, text: str, line_h: float = 4.5, indent: float = 0.0):
     pdf.set_x(pdf.l_margin + indent)
     avail_w = pdf.w - pdf.l_margin - pdf.r_margin - indent
     pdf.multi_cell(avail_w, line_h, _safe_pdf_text(text))
@@ -405,19 +405,12 @@ def build_prescriptive_smart_resume(
     matched_titles = [format_skill_label(s) for s in unique_matched]
     top_tools = ", ".join(matched_titles[:6]) if matched_titles else "Excel, SQL, Power BI, Python, R, Tableau"
 
-    if use_smart_goals:
-        tailored_summary = (
-            f"Results-driven {role_title or 'Data & Business Analyst'} with 8+ years of workforce, HR, payroll, "
-            f"and operational analytics experience. Delivers measurable business outcomes-including a 15% reduction in "
-            f"operating expenses, automated KPI reporting using {top_tools}, and high-accuracy staffing forecasts-aligned "
-            f"to drive 90-day impact at {company_label}."
-        )
-    else:
-        tailored_summary = (
-            f"Analytical and detail-oriented {role_title or 'Data & Business Analyst'} with 8+ years of experience turning "
-            f"payroll, timekeeping, scheduling, and operational datasets into clear dashboards and decision support using "
-            f"{top_tools}. Strongest alignment in {top_axis} to support {company_label}'s reporting and operational goals."
-        )
+    tailored_summary = (
+        f"Results-driven {role_title or 'Data & Business Analyst'} with 8+ years of workforce, HR, payroll, "
+        f"and operational analytics experience. Delivers measurable business outcomes-including a 15% reduction in "
+        f"operating expenses, automated KPI reporting using {top_tools}, and high-accuracy staffing forecasts-aligned "
+        f"to drive immediate impact at {company_label}."
+    )
 
     data_skills = sorted(set(
         axis_details.get("Data & BI Tools", {}).get("resume_has", []) +
@@ -445,30 +438,38 @@ def build_prescriptive_smart_resume(
         "Process, Compliance & Strategy": _prioritize(proc_lead_skills, "Process Improvement, Work-Rule Compliance, KPI Reporting, Stakeholder Presentations")
     }
 
-    if use_smart_goals:
-        exp_role_1_bullets = [
-            f"Consolidated multi-source payroll, recruiting, and operational datasets using {top_tools}, reducing manual reconciliation effort and improving weekly reporting turnaround by 40% within Q1.",
-            "Designed and maintained executive KPI dashboards tracking labor cost, utilization, turnover, and staffing demand across active accounts to support weekly workforce planning.",
-            "Built repeatable staffing and demand forecasts for recurring operational cycles, aligning headcount allocation with fluctuating workload targets ahead of peak periods.",
-            "Audited automated scheduling and timekeeping outputs against work-rule compliance rules, delivering clear executive summaries that prevented payroll errors."
-        ]
-        exp_role_2_bullets = [
-            "Analyzed crew scheduling, timekeeping, and labor utilization across multi-site Las Vegas operations (2018-2023), driving workflow improvements that reduced operating expenses by 15%.",
-            "Standardized Excel scheduling, payroll, and compliance trackers for teams of 10-50+ staff, cutting recurring administrative preparation time each pay cycle.",
-            "Supervised event crews and coordinated end-to-end operational logistics while maintaining 100% recordkeeping and regulatory compliance across assignments."
-        ]
-    else:
-        exp_role_1_bullets = [
+    # Explicit S-M-A-R-T breakdown per work experience
+    exp_1 = {
+        "header": "Contract Data & Workforce Analyst | Synergy Staffing Solutions (via MAREC Insights) - Las Vegas, NV (Aug 2023 - Present)",
+        "smart_items": [
+            ("S (Specific)", f"Consolidate multi-source payroll, recruiting, and operational datasets using {top_tools} while auditing scheduling and timekeeping against work-rule compliance."),
+            ("M (Measurable)", "Improve weekly reporting turnaround by 40% and track core labor cost, utilization, turnover, and staffing demand KPIs across active client accounts."),
+            ("A (Achievable)", "Leverage existing BI, spreadsheet, and analytical pipelines plus repeatable staffing forecast templates to deliver consistent outputs without added headcount."),
+            ("R (Relevant)", f"Directly supports {role_title or 'this role'} and {company_label}'s focus on {top_axis}, data accuracy, and workforce decision support."),
+            ("T (Time-Bound)", "Deliver weekly operational/recruiting dashboards, rolling demand forecasts ahead of staffing cycles, and rapid compliance audits.")
+        ],
+        "plain_bullets": [
             f"Combine payroll, recruiting, and operations data into consistent reports and dashboards using {top_tools}.",
             "Build and maintain dashboards tracking labor cost, productivity, turnover, and recruiting performance.",
-            "Prepare demand and staffing forecasts that support operational scheduling decisions and present findings in clear reports.",
-            "Audit automated scheduling tools for accuracy and compliance with established work rules."
+            "Prepare demand and staffing forecasts that support operational scheduling decisions and audit scheduling tools for work-rule compliance."
         ]
-        exp_role_2_bullets = [
+    }
+
+    exp_2 = {
+        "header": "Operations & Workforce Coordinator | Bella Brite Services - Las Vegas, NV (Oct 2018 - Aug 2023)",
+        "smart_items": [
+            ("S (Specific)", "Streamline crew scheduling, timekeeping, payroll tracking, and event logistics while standardizing Excel operational trackers for teams of 10-50+ staff."),
+            ("M (Measurable)", "Reduce operating expenses by 15%, cut recurring manual administrative effort each pay period, and maintain 100% compliance across assignments."),
+            ("A (Achievable)", "Apply structured scheduling rules, standardized Excel templates, and hands-on crew supervision across recurring service and event operations."),
+            ("R (Relevant)", "Demonstrates proven cost-reduction execution, workforce coordination, and operational discipline transferable to enterprise analytics and HR/ops teams."),
+            ("T (Time-Bound)", "Executed across multi-site Las Vegas operations from Oct 2018 to Aug 2023 with weekly scheduling and pay-cycle reporting cadences.")
+        ],
+        "plain_bullets": [
             "Reviewed scheduling and labor data for service and event crews across Las Vegas operations, reducing operating expenses by 15%.",
             "Built Excel scheduling, payroll, timekeeping, and compliance trackers for teams of 10-50 staff, cutting manual administrative effort.",
             "Supervised event crews, coordinated logistics, and managed day-to-day operational administration."
         ]
+    }
 
     education_certs = [
         "MBA, Keller Graduate School of Management | Graduate Certificate in Strategic Innovation & Change, University of Denver | B.S., Technical Management, DeVry University",
@@ -476,75 +477,90 @@ def build_prescriptive_smart_resume(
     ]
 
     pdf = FPDF(format="letter")
-    pdf.set_margins(15, 14, 15)
-    pdf.set_auto_page_break(auto=True, margin=14)
+    pdf.set_margins(15, 13, 15)
+    pdf.set_auto_page_break(auto=True, margin=13)
     pdf.add_page()
 
     pdf.set_font("Helvetica", "B", 15)
     pdf.set_text_color(15, 76, 92)
-    _write_wrapped_line(pdf, candidate_name, line_h=6.8)
+    _write_wrapped_line(pdf, candidate_name, line_h=6.5)
 
     pdf.set_font("Helvetica", "B", 9.5)
     pdf.set_text_color(50, 50, 50)
-    _write_wrapped_line(pdf, f"TARGET ROLE: {role_header} | {company_label.upper()[:45]}", line_h=5.2)
+    _write_wrapped_line(pdf, f"TARGET ROLE: {role_header} | {company_label.upper()[:45]}", line_h=5.0)
 
     pdf.set_font("Helvetica", "", 8.8)
     pdf.set_text_color(80, 80, 80)
-    _write_wrapped_line(pdf, contact_line, line_h=4.6)
-    pdf.ln(2)
+    _write_wrapped_line(pdf, contact_line, line_h=4.5)
+    pdf.ln(1.8)
 
     def _section_title(title: str):
         pdf.set_x(pdf.l_margin)
         pdf.set_font("Helvetica", "B", 10)
         pdf.set_text_color(15, 76, 92)
-        _write_wrapped_line(pdf, title, line_h=5.2)
+        _write_wrapped_line(pdf, title, line_h=5.0)
         y_pos = pdf.get_y()
         pdf.set_draw_color(15, 76, 92)
         pdf.line(pdf.l_margin, y_pos, pdf.w - pdf.r_margin, y_pos)
-        pdf.ln(1.8)
+        pdf.ln(1.5)
 
     _section_title("TARGETED PROFESSIONAL SUMMARY")
-    pdf.set_font("Helvetica", "", 9.2)
+    pdf.set_font("Helvetica", "", 9.0)
     pdf.set_text_color(30, 30, 30)
-    _write_wrapped_line(pdf, tailored_summary, line_h=4.6)
-    pdf.ln(2.5)
+    _write_wrapped_line(pdf, tailored_summary, line_h=4.4)
+    pdf.ln(2.0)
 
     _section_title("ROLE-ALIGNED SKILLS & ANALYTICS STACK")
     for s_label, s_vals in skills_sections.items():
-        pdf.set_font("Helvetica", "B", 9.0)
+        pdf.set_font("Helvetica", "B", 8.9)
         pdf.set_text_color(20, 20, 20)
-        _write_wrapped_line(pdf, f"{s_label}: {s_vals}", line_h=4.5)
-    pdf.ln(2.5)
+        _write_wrapped_line(pdf, f"{s_label}: {s_vals}", line_h=4.3)
+    pdf.ln(2.0)
 
-    exp_heading = "EXPERIENCE (SMART-GOAL IMPACT ALIGNMENT)" if use_smart_goals else "RELEVANT ANALYTICS & OPERATIONS EXPERIENCE"
+    exp_heading = "EXPERIENCE (S-M-A-R-T GOAL BREAKDOWN)" if use_smart_goals else "RELEVANT ANALYTICS & OPERATIONS EXPERIENCE"
     _section_title(exp_heading)
 
-    pdf.set_font("Helvetica", "B", 9.4)
-    pdf.set_text_color(20, 20, 20)
-    _write_wrapped_line(pdf, "Contract Data & Workforce Analyst | Synergy Staffing Solutions (via MAREC Insights) - Las Vegas, NV (Aug 2023 - Present)", line_h=4.8)
-    pdf.set_font("Helvetica", "", 9.0)
-    pdf.set_text_color(35, 35, 35)
-    for b in exp_role_1_bullets:
-        _write_wrapped_line(pdf, f"- {b}", line_h=4.5, indent=4.0)
-    pdf.ln(1.8)
+    for exp_block in [exp_1, exp_2]:
+        pdf.set_font("Helvetica", "B", 9.2)
+        pdf.set_text_color(20, 20, 20)
+        _write_wrapped_line(pdf, exp_block["header"], line_h=4.6)
 
-    pdf.set_font("Helvetica", "B", 9.4)
-    pdf.set_text_color(20, 20, 20)
-    _write_wrapped_line(pdf, "Operations & Workforce Coordinator | Bella Brite Services - Las Vegas, NV (Oct 2018 - Aug 2023)", line_h=4.8)
-    pdf.set_font("Helvetica", "", 9.0)
-    pdf.set_text_color(35, 35, 35)
-    for b in exp_role_2_bullets:
-        _write_wrapped_line(pdf, f"- {b}", line_h=4.5, indent=4.0)
-    pdf.ln(2.5)
+        if use_smart_goals:
+            for dim_label, dim_desc in exp_block["smart_items"]:
+                pdf.set_font("Helvetica", "B", 8.7)
+                pdf.set_text_color(15, 76, 92)
+                pdf.set_x(pdf.l_margin + 3.0)
+                pdf.write(4.2, _safe_pdf_text(f"{dim_label}: "))
+                pdf.set_font("Helvetica", "", 8.7)
+                pdf.set_text_color(35, 35, 35)
+                avail_w = pdf.w - pdf.l_margin - pdf.r_margin - 3.0
+                pdf.multi_cell(avail_w, 4.2, _safe_pdf_text(dim_desc))
+                pdf.set_x(pdf.l_margin)
+        else:
+            pdf.set_font("Helvetica", "", 8.8)
+            pdf.set_text_color(35, 35, 35)
+            for b in exp_block["plain_bullets"]:
+                _write_wrapped_line(pdf, f"- {b}", line_h=4.3, indent=3.5)
+        pdf.ln(1.6)
 
     _section_title("EDUCATION & INDUSTRY CERTIFICATIONS")
-    pdf.set_font("Helvetica", "", 9.0)
+    pdf.set_font("Helvetica", "", 8.8)
     pdf.set_text_color(35, 35, 35)
     for ec in education_certs:
-        _write_wrapped_line(pdf, f"- {ec}", line_h=4.5, indent=4.0)
+        _write_wrapped_line(pdf, f"- {ec}", line_h=4.3, indent=3.5)
 
     raw_out = pdf.output()
     pdf_bytes = bytes(raw_out) if isinstance(raw_out, (bytes, bytearray)) else raw_out.encode("latin-1")
+
+    def _format_exp_md(exp_block):
+        out = f"**{exp_block['header']}**\n"
+        if use_smart_goals:
+            for dim_label, dim_desc in exp_block["smart_items"]:
+                out += f"- **{dim_label}:** {dim_desc}\n"
+        else:
+            for b in exp_block["plain_bullets"]:
+                out += f"- {b}\n"
+        return out
 
     preview_md = (
         f"### {candidate_name}\n"
@@ -552,9 +568,11 @@ def build_prescriptive_smart_resume(
         f"#### Targeted Summary\n{tailored_summary}\n\n"
         f"#### Prioritized Skills\n"
         + "\n".join([f"- **{k}:** {v}" for k, v in skills_sections.items()])
-        + "\n\n#### Experience Highlights"
-        + (" *(SMART Goal Format)*\n" if use_smart_goals else "\n")
-        + "\n".join([f"- {b}" for b in exp_role_1_bullets + exp_role_2_bullets])
+        + "\n\n#### Experience Breakdown"
+        + (" *(S = Specific, M = Measurable, A = Achievable, R = Relevant, T = Time-Bound)*\n\n" if use_smart_goals else "\n\n")
+        + _format_exp_md(exp_1)
+        + "\n"
+        + _format_exp_md(exp_2)
     )
 
     return {
@@ -751,7 +769,7 @@ def analyze_candidate_fit(
             f"Projected Ramp-Up: {ramp_up.split('(')[0].strip()} | Retention Outlook: {retention_prob}."
         ),
         "prescriptive": (
-            f"Verdict: {match_strength_label} -> Generated a role-tailored {'SMART-Goal ' if use_smart_goals else ''}PDF Resume "
+            f"Verdict: {match_strength_label} -> Generated a role-tailored {'S-M-A-R-T ' if use_smart_goals else ''}PDF Resume "
             f"prioritizing {', '.join([format_skill_label(s) for s in unique_matched[:4]]) or 'core analytics skills'} for {company_brief['company_label']}."
         )
     }
@@ -775,15 +793,15 @@ def analyze_candidate_fit(
 
     recommendations = []
     if percentile >= 75.0:
-        recommendations.append(f"[Prescriptive Action] Strong {percentile}th-percentile match-download your customized SMART PDF Resume below and submit your application promptly.")
+        recommendations.append(f"[Prescriptive Action] Strong {percentile}th-percentile match-download your customized S-M-A-R-T PDF Resume below and submit your application promptly.")
     elif percentile >= 50.0:
-        recommendations.append(f"[Prescriptive Action] Moderate {percentile}th-percentile match-use the generated SMART PDF Resume to mirror exact JD phrasing before applying.")
+        recommendations.append(f"[Prescriptive Action] Moderate {percentile}th-percentile match-use the generated S-M-A-R-T PDF Resume to mirror exact JD phrasing before applying.")
     else:
         recommendations.append(f"[Prescriptive Action] Below-median {percentile}th-percentile match-skip low-ROI applications here and target roles via the Indeed Easy Apply links below.")
 
     if unique_matched:
         top_m = ", ".join([format_skill_label(s) for s in unique_matched[:5]])
-        recommendations.append(f"Anchor your SMART bullets on quantified outcomes (15% operating cost reduction, automated reporting hours saved) paired with: {top_m}.")
+        recommendations.append(f"Anchor your S-M-A-R-T bullets on quantified outcomes (15% operating cost reduction, automated reporting hours saved) paired with: {top_m}.")
 
     if unique_missing:
         top_x = ", ".join([format_skill_label(s) for s in unique_missing[:5]])
