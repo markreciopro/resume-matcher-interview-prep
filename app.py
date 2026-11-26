@@ -19,7 +19,7 @@ st.set_page_config(
 
 st.title("🎯 Personal Job Match & Prescriptive Resume Studio")
 st.markdown(
-    "Powered by **Diagnostic**, **Predictive**, and **Prescriptive Analytics** — evaluate percentile match strength, inspect company and role alignment, and download a customized **S-M-A-R-T PDF Resume**."
+    "Powered by **Diagnostic**, **Predictive**, and **Prescriptive Analytics** — evaluate percentile match strength, inspect company and role alignment, and download a recruiter-ready **Tailored PDF Resume**."
 )
 
 with st.sidebar:
@@ -29,7 +29,7 @@ with st.sidebar:
     pool_std = st.slider("Standard Deviation (σ)", 5.0, 20.0, 12.0, 0.5)
     target_bar = st.slider("Radar Target Threshold (%)", 40.0, 100.0, 75.0, 5.0)
     st.divider()
-    use_smart_goals = st.checkbox("Build Experience with S-M-A-R-T Goals", value=True)
+    use_smart_goals = st.checkbox("Include S-M-A-R-T Interview/Prep Breakdown", value=True)
     st.caption("**S**pecific • **M**easurable • **A**chievable • **R**elevant • **T**ime-Bound")
     st.divider()
     st.markdown("**Percentile & Match Guide**")
@@ -95,7 +95,6 @@ if analyze_btn:
         else:
             st.error(verdict_msg)
 
-        # 3-Stage Data Analytics Framework Banner
         st.subheader("🧭 Data Analytics Pipeline: Diagnostic → Predictive → Prescriptive")
         da1, da2, da3 = st.columns(3)
         with da1:
@@ -107,23 +106,17 @@ if analyze_btn:
 
         st.divider()
 
-        # Prescriptive Analytics Deliverable: Tailored S-M-A-R-T PDF Resume Download
-        st.subheader("📝 Prescriptive Analytics: Tailored PDF Resume Generator")
-        if use_smart_goals:
-            st.caption(
-                f"Customized for **{target_role}** at **{res['company_brief']['company_label']}** — each work experience defines "
-                f"**S** (Specific), **M** (Measurable), **A** (Achievable), **R** (Relevant), and **T** (Time-Bound)."
-            )
-        else:
-            st.caption(
-                f"Customized for **{target_role}** at **{res['company_brief']['company_label']}** with role-prioritized skills and experience."
-            )
+        st.subheader("📝 Prescriptive Analytics: Recruiter-Ready Tailored PDF Resume")
+        st.caption(
+            f"Formatted with scannable achievement bullets for **{target_role}** at **{res['company_brief']['company_label']}** "
+            f"(with optional **S-M-A-R-T** interview & prep breakdown in the preview below)."
+        )
 
         safe_role_slug = re.sub(r'[^A-Za-z0-9]+', '_', target_role).strip('_') or "Target_Role"
         pdf_filename = f"Mark_Recio_Resume_{safe_role_slug}.pdf"
 
         st.download_button(
-            label=f"⬇️ Download Customized {'S-M-A-R-T ' if use_smart_goals else ''}PDF Resume ({pdf_filename})",
+            label=f"⬇️ Download Recruiter-Ready PDF Resume ({pdf_filename})",
             data=res["prescriptive_resume"]["pdf_bytes"],
             file_name=pdf_filename,
             mime="application/pdf",
@@ -131,12 +124,11 @@ if analyze_btn:
             use_container_width=True
         )
 
-        with st.expander("👀 Preview Customized Resume & S-M-A-R-T Breakdown", expanded=True):
+        with st.expander("👀 Preview Tailored Resume & S-M-A-R-T Prep Breakdown", expanded=True):
             st.markdown(res["prescriptive_resume"]["preview_md"])
 
         st.divider()
 
-        # About the Company + Tell Me About Yourself (Matched to Role)
         comp_col, pitch_col = st.columns(2)
 
         with comp_col:
@@ -158,7 +150,6 @@ if analyze_btn:
 
         st.divider()
 
-        # Side-by-Side Highlighted Resume vs. Pasted Job Description
         st.subheader("📄 Diagnostic View: Side-by-Side Resume & Job Description Match")
         st.markdown(
             "Highlight Legend: "
@@ -188,7 +179,6 @@ if analyze_btn:
 
         st.divider()
 
-        # Row 1: Predictive Bell Curve + Diagnostic 6-Axis Radar
         c_bell, c_radar = st.columns([3, 2])
 
         with c_bell:
@@ -286,7 +276,6 @@ if analyze_btn:
 
         st.divider()
 
-        # Row 2: Improved Heatmap + Unclipped Donut Chart
         c_heat, c_donut = st.columns([3, 2])
 
         with c_heat:
@@ -403,7 +392,6 @@ if analyze_btn:
             )
             st.plotly_chart(fig_donut, use_container_width=True)
 
-        # Row 3: Domain Counts Bar Chart + Summary Table
         st.subheader("📊 Domain Counts Comparison")
         c_bar, c_tbl = st.columns([3, 2])
 
@@ -422,7 +410,6 @@ if analyze_btn:
         with c_tbl:
             st.dataframe(cat_df, use_container_width=True, hide_index=True)
 
-        # Interview Readiness & Focus Points
         st.divider()
         st.subheader("🎤 Interview Invite Preparation: Focus Points & Questions to Ask")
         if res["is_good_match"]:
@@ -441,7 +428,6 @@ if analyze_btn:
                 f"Currently at the {res['percentile']}th percentile ({res['match_strength_label']}). Tailor your resume to the missing skills below or explore higher-fit roles via Indeed Easy Apply."
             )
 
-        # Insights & Recommendations
         st.divider()
         ins_col, rec_col = st.columns(2)
         with ins_col:
@@ -454,7 +440,6 @@ if analyze_btn:
             for rec in res["recommendations"]:
                 st.success(rec)
 
-        # Matched vs Missing Skills Overall
         st.divider()
         st.subheader("📋 Matched & Missing Skills Inventory")
         m_col, x_col = st.columns(2)
@@ -471,7 +456,6 @@ if analyze_btn:
             else:
                 st.write("All detected job description skills are matched.")
 
-        # Indeed Easy Apply Links Section
         st.divider()
         st.subheader("🔗 Indeed 'Easily Apply' Matching Job Links")
         st.caption("Each link opens Indeed pre-filtered to Easy Apply (`sritch=1`) using your target role, location, and skill profile.")
@@ -488,7 +472,6 @@ if analyze_btn:
             }
         )
 
-        # Export Summary Report
         st.divider()
         st.subheader("📥 Export Full Analytics & Interview Prep Guide")
         prep_md = ""
