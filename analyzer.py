@@ -565,7 +565,7 @@ def build_prescriptive_smart_resume(
         _write_block(pdf, f"- {edu}", line_h=4.4, indent=3.5, space_after=0.6)
     pdf.ln(1.2)
 
-    _section_title("CERTIFICATIONS")
+    _section_title("CERTIFICATE")
     pdf.set_font("Helvetica", "", 8.8)
     pdf.set_text_color(30, 30, 30)
     _write_block(pdf, certifications_line, line_h=4.4, space_after=0.5)
@@ -596,7 +596,7 @@ def build_prescriptive_smart_resume(
         + _format_exp_md(exp_2)
         + "\n#### Education\n"
         + "\n".join([f"- {edu}" for edu in education_items])
-        + f"\n\n#### Certifications\n{certifications_line}"
+        + f"\n\n#### Certificate\n{certifications_line}"
     )
 
     return {
@@ -925,4 +925,5 @@ def build_indeed_easy_apply_links(
         })
 
     return links
+
 
