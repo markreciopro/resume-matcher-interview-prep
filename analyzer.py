@@ -513,7 +513,7 @@ def build_prescriptive_smart_resume(
 
     pdf.set_font("Helvetica", "B", 9.5)
     pdf.set_text_color(40, 40, 40)
-    _write_block(pdf, f"{role_str.upper()}  |  TAILORED FOR {company_label.upper()[:45]}", line_h=4.8, space_after=0.4)
+    _write_block(pdf, role_str.upper(), line_h=4.8, space_after=0.4)
 
     pdf.set_font("Helvetica", "", 8.6)
     pdf.set_text_color(75, 75, 75)
@@ -585,7 +585,7 @@ def build_prescriptive_smart_resume(
 
     preview_md = (
         f"### {candidate_name}\n"
-        f"**{role_str}** | **Tailored for:** {company_label}\n\n"
+        f"**{role_str}**\n\n"
         f"#### Professional Summary\n{summary_text}\n\n"
         f"#### Core Skills & Analytics Stack\n"
         + "\n".join([f"- **{k}:** {v}" for k, v in skills_sections.items()])
@@ -925,3 +925,4 @@ def build_indeed_easy_apply_links(
         })
 
     return links
+
